@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <script src="vue.js"></script>
+    <script>
+        // 响应式数据变化,数据变化可以监测到变化
+        // 数据的 取值 和 更改
+        const vm = new Vue({
+            data:{
+                name:'cc',
+                age:18,
+                job:{
+                    what:'前端',
+                    fight:'jiayou'
+                },
+                hobby:['js','vue',{a:123}]
+            }
+        })
+        vm.hobby.unshift('头部新增的内容')
+        vm.hobby.push('新添加的内容')
+        console.log(vm);
+    </script>
+</body>
+</html>
