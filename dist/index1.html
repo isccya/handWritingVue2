@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+        <div id="app">
+            <div>{{ name }}</div>
+            <span> {{age}} </span>
+        </div>
+        <script src="vue.js"></script>
+        <script>
+            const vm = new Vue({
+                data:{
+                    name:'cc',
+                    age:123,
+                    job:{
+                        what:'webFront'
+                    },
+                    hobby:['js','vue',{a:1}]
+                },
+                el:'#app', //我们要将数据解析到el元素上
+            })
+            // 1,模板引擎 需要正则替换, vue1.0时候,没有引入虚拟dom
+            // 2,虚拟DOM,数据变化后,比较虚拟DOM差异,最后更新需要更新的地方
+            // 核心是将模板变成js语法的数据结构,生成渲染函数返回虚拟DOM
+            
+        </script>
+</body>
+</html>
