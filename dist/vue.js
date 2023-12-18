@@ -59,11 +59,11 @@
   methods.forEach(function (method) {
     newArrayProto[method] = function () {
       var _oldArrayProto$method;
-      //这里重写了数组的方法
-      console.log(method);
       for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
         args[_key] = arguments[_key];
       }
+      //这里重写了数组的方法
+      // console.log(method);
       var result = (_oldArrayProto$method = oldArrayProto[method]).call.apply(_oldArrayProto$method, [this].concat(args)); //内部调用原来的方法
       var inserted;
       var ob = this.__ob__;
@@ -81,7 +81,7 @@
       return result;
     };
   });
-  console.log(newArrayProto);
+  // console.log(newArrayProto);
 
   var Observer = /*#__PURE__*/function () {
     function Observer(data) {
@@ -176,13 +176,124 @@
     }
   }
 
-  //对模板进行编译处理
+  var ncname = "[a-zA-Z_][\\-\\.0-9_a-zA-Z]*";
+  var qnameCapture = "((?:".concat(ncname, "\\:)?").concat(ncname, ")");
+  var startTagOpen = new RegExp("^<".concat(qnameCapture)); // 他匹配到的分组是一个 标签名  <xxx 匹配到的是开始 标签的名字
+  var endTag = new RegExp("^<\\/".concat(qnameCapture, "[^>]*>")); // 匹配的是</xxxx>  最终匹配到的分组就是结束标签的名字
+  var attribute = /^\s*([^\s"'<>\/=]+)(?:\s*(=)\s*(?:"([^"]*)"+|'([^']*)'+|([^\s"'=<>`]+)))?/; // 匹配属性
+  // 第一个分组就是属性的key value 就是 分组3/分组4/分组五
+  var startTagClose = /^\s*(\/?)>/; // <div> <br/>
+
+  // vue3 采用的不是使用正则
+  // 对模板进行编译处理  
+  function parseHTML(html) {
+    var ELEMENT_TYPE = 1;
+    var TEXT_TYPE = 3;
+    var stack = []; // 用于存放元素的
+    var currentParent; // 指向的是栈中的最后一个
+    var root;
+    function createASTElement(tag, attrs) {
+      return {
+        tag: tag,
+        type: ELEMENT_TYPE,
+        children: [],
+        attrs: attrs,
+        parent: null
+      };
+    }
+    function start(tag, attrs) {
+      var node = createASTElement(tag, attrs); //创建一个ast节点
+      if (!root) {
+        //没有根节点,当前元素就是根节点
+        root = node;
+      }
+      if (currentParent) {
+        node.parent = currentParent; //子知父
+        currentParent.children.push(node); //父知子
+      }
+      stack.push(node);
+      currentParent = node; //父节点为栈中最后一个元素
+    }
+    function chars(text) {
+      //文本放到当前指向的节点
+      text = text.replace(/\s/g, '');
+      text && currentParent.children.push({
+        type: TEXT_TYPE,
+        text: text,
+        parent: currentParent
+      });
+    }
+    function end(tag) {
+      stack.pop(); //弹出最后一个
+      currentParent = stack[stack.length - 1];
+    }
+
+    // 模板解析完多少,就前进多少
+    function advance(n) {
+      html = html.substring(n);
+    }
+
+    // 解析开始标签及其里面的属性
+    function parseStartTag() {
+      var start = html.match(startTagOpen);
+      // 1.匹配到开始标签
+      if (start) {
+        var match = {
+          tagName: start[1],
+          //标签名
+          attrs: []
+        };
+        advance(start[0].length);
+        // 2.如果不是开始标签的结束,就一直匹配属性,把属性值放入match.attrs中
+        var attr, _end;
+        while (!(_end = html.match(startTagClose)) && (attr = html.match(attribute))) {
+          advance(attr[0].length);
+          match.attrs.push({
+            name: attr[1],
+            value: attr[3] || attr[4] || attr[5]
+          } || true);
+        }
+        // 3.匹配到结束符号
+        if (_end) {
+          advance(_end[0].length);
+        }
+        return match;
+      }
+      return false; //不是开始标签
+    }
+    while (html) {
+      // 如果textEnd 为0 说明是一个开始标签或者结束标签
+      // 如果textEnd > 0说明就是文本的结束位置
+      var textEnd = html.indexOf('<'); // 如果indexOf中的索引是0 则说明是个标签
+      if (textEnd === 0) {
+        var startTagMatch = parseStartTag(); //开始标签的匹配
+        if (startTagMatch) {
+          start(startTagMatch.tagName, startTagMatch.attrs);
+          continue;
+        }
+        var endTagMatch = html.match(endTag);
+        if (endTagMatch) {
+          end(endTagMatch[1]);
+          advance(endTagMatch[0].length);
+          continue;
+        }
+      }
+      if (textEnd > 0) {
+        var text = html.substring(0, textEnd); //文本内容
+        if (text) {
+          chars(text);
+          advance(text.length); //解析到的文本
+        }
+      }
+    }
+    return root;
+  }
 
   function compileToFunction(template) {
     // 1.将template转换为AST语法树
-
+    var ast = parseHTML(template);
+    console.log(ast);
     // 2.生成render方法(render方法执行后返回的是虚拟DOM)
-    console.log(template);
   }
 
   function initMixin(Vue) {
