@@ -64,8 +64,14 @@ export function compileToFunction(template) {
 
     // 1.将template转换为AST语法树
     let ast = parseHTML(template)
-    console.log(ast);
+    
     // 2.生成render方法(render方法执行后返回的是虚拟DOM)
     let code = codegen(ast);
-    console.log(code);
+
+    // 模板引擎的实现原理 就是 with  + new Function 
+
+
+    code = `with(this){return ${code}}`
+    const render = new Function(code)
+    return render
 }

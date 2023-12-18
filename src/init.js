@@ -32,6 +32,7 @@ export function initMixin(Vue){ //给Vue添加init方法
                 ops.render = render
             }        
         }
+        mountComponent(vm,el); //组件的挂载
 
     }
 }
