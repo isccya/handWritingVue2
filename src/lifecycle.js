@@ -1,3 +1,4 @@
+import Watcher from "./observe/watcher";
 import { createElementVNode, createTextVNode } from "./vdom";
 
 // 创建真实DOM
@@ -26,9 +27,9 @@ function patchProps(el,props){
         }
     }
 }
-
+    
+// 写的是初渲染过程
 function patch(oldVnode,vnode){
-    // 写的是初渲染过程
     const isRealElement = oldVnode.nodeType
     if(isRealElement){
         const elm = oldVnode; //获取真实DOM
@@ -44,10 +45,11 @@ function patch(oldVnode,vnode){
 }
 
 export function initLifeCycle(Vue) {
-    Vue.prototype._update = function (vnode) { // 将vnode转化成真实dom
+     // 将vnode转化成真实dom
+    Vue.prototype._update = function (vnode) {
         const vm = this
         const el = vm.$el
-    //既有初始化功能,又有更新的功能 
+    //patch方法里面把虚拟节点转换为真实节点,并把模板中替换旧节点
     vm.$el = patch(el,vnode)
     }
 
@@ -72,10 +74,17 @@ export function initLifeCycle(Vue) {
     }
 }
 
-export function mountComponent(vm, el) { //挂载
+
+
+//挂载
+export function mountComponent(vm, el) { 
     vm.$el = el // 这里的el 是通过querySelector处理过的
+    
     // 1.调用render方法产生虚拟节点 虚拟DOM
-    vm._update(vm._render());
+    const updateComponent = ()=>{
+        vm._update(vm._render());
+    }
+    new Watcher(vm,updateComponent,true) //true用于标识是一个渲染watcher
 
     // 2.根据虚拟DOM产生真实DOM 
 

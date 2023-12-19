@@ -132,6 +132,42 @@
   });
   // console.log(newArrayProto);
 
+  var id$1 = 0;
+  /**
+   * dep每个属性都有,目的是收集watcher
+   * 
+   * */
+  var Dep = /*#__PURE__*/function () {
+    function Dep() {
+      _classCallCheck(this, Dep);
+      this.id = id$1++; //属性的dep收集watcher
+      this.subs = []; //存放属性对应的watcher有哪些
+    }
+    _createClass(Dep, [{
+      key: "depend",
+      value: function depend() {
+        // 不希望重复记录watcher
+        Dep.target.addDep(this); //让watcher记住dep
+
+        // dep和watcher是一个多对多关系
+      }
+    }, {
+      key: "addSub",
+      value: function addSub(watcher) {
+        this.subs.push(watcher);
+      }
+    }, {
+      key: "nodify",
+      value: function nodify() {
+        this.subs.forEach(function (watcher) {
+          return watcher.update();
+        }); //告诉watcher要更新了
+      }
+    }]);
+    return Dep;
+  }();
+  Dep.target = null;
+
   var Observer = /*#__PURE__*/function () {
     function Observer(data) {
       _classCallCheck(this, Observer);
@@ -171,14 +207,19 @@
   function defineReactive(target, key, value) {
     //闭包 属性劫持
     observe(value); //递归,值是对象,也对对象内部的值做劫持
+    var dep = new Dep(); //每一个属性都有dep
     Object.defineProperty(target, key, {
       get: function get() {
+        if (Dep.target) {
+          dep.depend(); //让这个属性记住当前的watcher
+        }
         return value;
       },
       set: function set(newValue) {
         if (newValue === value) return;
         observe(newValue);
         value = newValue;
+        dep.nodify(); //通知更新
       }
     });
   }
@@ -426,6 +467,52 @@
   }
 
   /**
+   * 每个组件对应一个watcher,页面渲染的逻辑放到watcher里
+   * 每个属性有一个dep (属性是被观察者), watcher是观察者(属性变化了会通知观察者来更新)
+   * 
+   * 
+   * */
+  var id = 0;
+  var Watcher = /*#__PURE__*/function () {
+    //不同组件有不同的watcher ,目前只有根组件有
+    function Watcher(vm, fn, options) {
+      _classCallCheck(this, Watcher);
+      this.id = id++;
+      this.renderWatcher = options; //是一个渲染过程
+      this.getter = fn; // getter意味着调用这个函数可以发生取值操作
+      this.deps = []; // 后续 我们实现计算属性,和一些清理工作需要
+      this.depsId = new Set(); //
+      this.get();
+    }
+    _createClass(Watcher, [{
+      key: "addDep",
+      value: function addDep(dep) {
+        // 一个组件对应多个属性 重复的属性也不用记录
+        var id = dep.id;
+        if (!this.depsId.has(id)) {
+          this.deps.push(id);
+          this.depsId.add(id);
+          dep.addSub(this); //watcher已经记住dep并且去重,此时让dep记住watcher
+        }
+      }
+    }, {
+      key: "get",
+      value: function get() {
+        // 用不到的数据就不会收集
+        Dep.target = this; //把当前渲染组件的watcher放在全局上,组件渲染会访问数据,数据里get方法会把把该组件添加到自己的dep中
+        this.getter(); //会去vm上取值 vm._update(vm._render) 取name 和age
+        Dep.target = null; // 渲染完之后清空
+      }
+    }, {
+      key: "update",
+      value: function update() {
+        this.get();
+      }
+    }]);
+    return Watcher;
+  }(); // 需要给每个属性增加一个dep,目的就是收集watcher
+
+  /**
    * 这个文件是创建虚拟节点
    * */
 
@@ -494,8 +581,9 @@
       }
     }
   }
+
+  // 写的是初渲染过程
   function patch(oldVnode, vnode) {
-    // 写的是初渲染过程
     var isRealElement = oldVnode.nodeType;
     if (isRealElement) {
       var elm = oldVnode; //获取真实DOM
@@ -508,11 +596,11 @@
     }
   }
   function initLifeCycle(Vue) {
+    // 将vnode转化成真实dom
     Vue.prototype._update = function (vnode) {
-      // 将vnode转化成真实dom
       var vm = this;
       var el = vm.$el;
-      //既有初始化功能,又有更新的功能 
+      //patch方法里面把虚拟节点转换为真实节点,并把模板中替换旧节点
       vm.$el = patch(el, vnode);
     };
 
@@ -532,11 +620,16 @@
       return this.$options.render.call(this); // 通过ast语法转义后生成的render方法
     };
   }
+
+  //挂载
   function mountComponent(vm, el) {
-    //挂载
     vm.$el = el; // 这里的el 是通过querySelector处理过的
+
     // 1.调用render方法产生虚拟节点 虚拟DOM
-    vm._update(vm._render());
+    var updateComponent = function updateComponent() {
+      vm._update(vm._render());
+    };
+    new Watcher(vm, updateComponent, true); //true用于标识是一个渲染watcher
 
     // 2.根据虚拟DOM产生真实DOM 
 
