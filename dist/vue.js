@@ -425,6 +425,128 @@
     return render;
   }
 
+  /**
+   * 这个文件是创建虚拟节点
+   * */
+
+  // h()  _c()
+  function createElementVNode(vm, tag, data) {
+    //创建元素虚拟节点
+    if (data == null) {
+      data = {};
+    }
+    var key = data.key;
+    if (key) {
+      delete data.key;
+    }
+    for (var _len = arguments.length, children = new Array(_len > 3 ? _len - 3 : 0), _key = 3; _key < _len; _key++) {
+      children[_key - 3] = arguments[_key];
+    }
+    return vnode(vm, tag, key, data, children);
+  }
+  // _v();
+  function createTextVNode(vm, text) {
+    //创建文本虚拟节点
+    return vnode(vm, undefined, undefined, undefined, undefined, text);
+  }
+  // ast一样吗？ ast做的是语法层面的转化 他描述的是语法本身 (可以描述js css html)
+  // 我们的虚拟dom 是描述的dom元素，可以增加一些自定义属性  (描述dom的)
+  function vnode(vm, tag, key, data, children, text) {
+    return {
+      vm: vm,
+      tag: tag,
+      key: key,
+      data: data,
+      children: children,
+      text: text
+      // ....
+    };
+  }
+
+  // 创建真实DOM
+  function createElm(vnode) {
+    var tag = vnode.tag,
+      data = vnode.data,
+      children = vnode.children,
+      text = vnode.text;
+    if (typeof tag == 'string') {
+      //元素节点
+      vnode.el = document.createElement(tag);
+      patchProps(vnode.el, data);
+      children.forEach(function (child) {
+        vnode.el.appendChild(createElm(child));
+      });
+    } else {
+      //文本节点
+      vnode.el = document.createTextNode(text);
+    }
+    return vnode.el;
+  }
+  // 创建真实DOM中的元素节点时候添加元素属性
+  function patchProps(el, props) {
+    for (var key in props) {
+      if (key === 'style') {
+        for (var styleName in props.style) {
+          el.style[styleName] = props.style[styleName];
+        }
+      } else {
+        el.setAttribute(key, props[key]);
+      }
+    }
+  }
+  function patch(oldVnode, vnode) {
+    // 写的是初渲染过程
+    var isRealElement = oldVnode.nodeType;
+    if (isRealElement) {
+      var elm = oldVnode; //获取真实DOM
+      var parentElm = elm.parentNode; //拿到父元素
+      var newElm = createElm(vnode); //创建新DOM
+      parentElm.insertBefore(newElm, elm.nextSibling); //替换
+      parentElm.removeChild(elm); //删除老节点
+
+      return newElm;
+    }
+  }
+  function initLifeCycle(Vue) {
+    Vue.prototype._update = function (vnode) {
+      // 将vnode转化成真实dom
+      var vm = this;
+      var el = vm.$el;
+      //既有初始化功能,又有更新的功能 
+      vm.$el = patch(el, vnode);
+    };
+
+    // _c('div',{},...children)
+    Vue.prototype._c = function () {
+      return createElementVNode.apply(void 0, [this].concat(Array.prototype.slice.call(arguments)));
+    };
+    // _v(text)
+    Vue.prototype._v = function () {
+      return createTextVNode.apply(void 0, [this].concat(Array.prototype.slice.call(arguments)));
+    };
+    Vue.prototype._s = function (value) {
+      if (_typeof(value) !== 'object') return value;
+      return JSON.stringify(value);
+    };
+    Vue.prototype._render = function () {
+      return this.$options.render.call(this); // 通过ast语法转义后生成的render方法
+    };
+  }
+  function mountComponent(vm, el) {
+    //挂载
+    vm.$el = el; // 这里的el 是通过querySelector处理过的
+    // 1.调用render方法产生虚拟节点 虚拟DOM
+    vm._update(vm._render());
+
+    // 2.根据虚拟DOM产生真实DOM 
+
+    // 3.插入到el元素中
+  }
+  // vue核心流程 1） 创造了响应式数据  2） 模板转换成ast语法树  
+  // 3) 将ast语法树转换了render函数 4) 后续每次数据更新可以只执行render函数 (无需再次执行ast转化的过程)
+  // render函数会去产生虚拟节点（使用响应式数据）
+  // 根据生成的虚拟节点创造真实的DOM
+
   function initMixin(Vue) {
     //给Vue添加init方法
     Vue.prototype._init = function (options) {
@@ -456,7 +578,7 @@
         }
         // 写了template就用写了的template
         if (template) {
-          // 这里需要对模板进行编译
+          // 这里需要对模板进行编译,即生成AST树,根据AST树代码生成渲染函数.
           var render = compileToFunction(template);
           ops.render = render;
         }
@@ -464,21 +586,6 @@
       mountComponent(vm, el); //组件的挂载
     };
   }
-
-  function initLifeCycle(Vue) {
-    Vue.prototype._update = function () {
-      // 将vnode转化成真实dom
-      var vm = this;
-      vm.$el;
-    };
-    Vue.prototype._render = function () {
-      return this.$options.render.call(this); // 通过ast语法转义后生成的render方法
-    };
-  }
-  // vue核心流程 1） 创造了响应式数据  2） 模板转换成ast语法树  
-  // 3) 将ast语法树转换了render函数 4) 后续每次数据更新可以只执行render函数 (无需再次执行ast转化的过程)
-  // render函数会去产生虚拟节点（使用响应式数据）
-  // 根据生成的虚拟节点创造真实的DOM
 
   function Vue(options) {
     //options就是用户的选项,包括data,computed等等
