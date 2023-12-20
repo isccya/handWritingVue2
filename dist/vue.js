@@ -209,12 +209,14 @@
     observe(value); //递归,值是对象,也对对象内部的值做劫持
     var dep = new Dep(); //每一个属性都有dep
     Object.defineProperty(target, key, {
+      // ***在数据的get方法进行依赖收集,访问了数据===>组件依赖这些数据***
       get: function get() {
         if (Dep.target) {
           dep.depend(); //让这个属性记住当前的watcher
         }
         return value;
       },
+      // ***在数据的set方法进行依赖追踪,数据修改===>组件更新***
       set: function set(newValue) {
         if (newValue === value) return;
         observe(newValue);
@@ -470,7 +472,10 @@
    * 每个组件对应一个watcher,页面渲染的逻辑放到watcher里
    * 每个属性有一个dep (属性是被观察者), watcher是观察者(属性变化了会通知观察者来更新)
    * 
-   * 
+   * 需要给每个数据增加一个dep,目的就是收集watcher
+      一个组件有多个数据(n个数据对应一个视图) n个dep对应一个watcher
+      一个数据对应多个组件
+      多对多 
    * */
   var id = 0;
   var Watcher = /*#__PURE__*/function () {
@@ -506,11 +511,62 @@
     }, {
       key: "update",
       value: function update() {
+        queueWatcher(this); //把当前watcher暂存,避免一个数据修改就更新整个页面
+        // this.get()
+      }
+    }, {
+      key: "run",
+      value: function run() {
         this.get();
       }
     }]);
     return Watcher;
-  }(); // 需要给每个属性增加一个dep,目的就是收集watcher
+  }();
+  var queue = [];
+  var has = {}; //用对象去重watcher
+  var pending = false; //防抖
+
+  function flushSchedulerQueue() {
+    var flushQueue = queue.slice(0);
+    queue = [];
+    has = {};
+    pending = false;
+    flushQueue.forEach(function (q) {
+      return q.run();
+    }); // 在刷新的过程中可能还有新的watcher，重新放到queue中
+  }
+  function queueWatcher(watcher) {
+    var id = watcher.id;
+    if (!has[id]) {
+      queue.push(watcher);
+      has[id] = true;
+      // 不管update执行多少次,但是最终只刷新一轮
+      if (!pending) {
+        nextTick(flushSchedulerQueue); //同步任务里面最后一次赋值(同步前面可能赋值多次)后,异步任务再执行更新,所以是批处理
+        pending = true;
+      }
+    }
+  }
+  // 又来一次这种方法,多个执行合成一个:一个变量,开个异步
+  // 控制更新顺序
+  var callbacks = [];
+  var waiting = false;
+  function flushCallbacks() {
+    var cbs = callbacks.slice(0);
+    waiting = false;
+    callbacks = [];
+    cbs.forEach(function (cb) {
+      return cb();
+    });
+  }
+  // nextTick不是创建了异步任务,而是将异步任务维护到队列中
+  function nextTick(cb) {
+    callbacks.push(cb);
+    if (!waiting) {
+      Promise.resolve().then(flushCallbacks);
+      waiting = true;
+    }
+  }
 
   /**
    * 这个文件是创建虚拟节点
@@ -591,7 +647,6 @@
       var newElm = createElm(vnode); //创建新DOM
       parentElm.insertBefore(newElm, elm.nextSibling); //替换
       parentElm.removeChild(elm); //删除老节点
-
       return newElm;
     }
   }
@@ -686,6 +741,7 @@
   }
   initMixin(Vue); //给vue对象扩展了init方法
   initLifeCycle(Vue);
+  Vue.prototype.$nextTick = nextTick;
 
   return Vue;
 

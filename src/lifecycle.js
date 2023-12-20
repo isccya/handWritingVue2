@@ -37,7 +37,6 @@ function patch(oldVnode,vnode){
         const newElm = createElm(vnode) //创建新DOM
         parentElm.insertBefore(newElm,elm.nextSibling) //替换
         parentElm.removeChild(elm) //删除老节点
-
         return newElm
     }else{
         // diff算法
@@ -79,7 +78,7 @@ export function initLifeCycle(Vue) {
 //挂载
 export function mountComponent(vm, el) { 
     vm.$el = el // 这里的el 是通过querySelector处理过的
-    
+
     // 1.调用render方法产生虚拟节点 虚拟DOM
     const updateComponent = ()=>{
         vm._update(vm._render());

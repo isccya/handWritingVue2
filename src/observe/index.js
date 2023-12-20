@@ -29,12 +29,14 @@ export function defineReactive(target, key, value) { //闭包 属性劫持
     observe(value) //递归,值是对象,也对对象内部的值做劫持
     let dep = new Dep() //每一个属性都有dep
     Object.defineProperty(target, key, {
+        // ***在数据的get方法进行依赖收集,访问了数据===>组件依赖这些数据***
         get() {
             if(Dep.target){
                 dep.depend();//让这个属性记住当前的watcher
             }
             return value
         },
+        // ***在数据的set方法进行依赖追踪,数据修改===>组件更新***
         set(newValue) {
             if (newValue === value) return
             observe(newValue)

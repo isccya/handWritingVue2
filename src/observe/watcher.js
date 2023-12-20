@@ -3,15 +3,18 @@ import Dep from "./dep";
  * 每个组件对应一个watcher,页面渲染的逻辑放到watcher里
  * 每个属性有一个dep (属性是被观察者), watcher是观察者(属性变化了会通知观察者来更新)
  * 
- * 
- * */ 
+ * 需要给每个数据增加一个dep,目的就是收集watcher
+    一个组件有多个数据(n个数据对应一个视图) n个dep对应一个watcher
+    一个数据对应多个组件
+    多对多 
+ * */
 let id = 0
 
 
 
 
-class Watcher{ //不同组件有不同的watcher ,目前只有根组件有
-    constructor(vm,fn,options){
+class Watcher { //不同组件有不同的watcher ,目前只有根组件有
+    constructor(vm, fn, options) {
         this.id = id++
         this.renderWatcher = options //是一个渲染过程
         this.getter = fn; // getter意味着调用这个函数可以发生取值操作
@@ -19,30 +22,72 @@ class Watcher{ //不同组件有不同的watcher ,目前只有根组件有
         this.depsId = new Set(); //
         this.get()
     }
-    addDep(dep){ // 一个组件对应多个属性 重复的属性也不用记录
+    addDep(dep) { // 一个组件对应多个属性 重复的属性也不用记录
         let id = dep.id
-        if(!this.depsId.has(id)){
+        if (!this.depsId.has(id)) {
             this.deps.push(id)
             this.depsId.add(id)
             dep.addSub(this) //watcher已经记住dep并且去重,此时让dep记住watcher
         }
     }
-    get(){
+    get() {
         // 用不到的数据就不会收集
         Dep.target = this //把当前渲染组件的watcher放在全局上,组件渲染会访问数据,数据里get方法会把把该组件添加到自己的dep中
         this.getter() //会去vm上取值 vm._update(vm._render) 取name 和age
         Dep.target = null // 渲染完之后清空
     }
-    update(){
+    update() {
+        queueWatcher(this) //把当前watcher暂存,避免一个数据修改就更新整个页面
+        // this.get()
+    }
+    run() {
         this.get()
     }
 }
 
-// 需要给每个属性增加一个dep,目的就是收集watcher
+let queue = []
+let has = {} //用对象去重watcher
+let pending = false //防抖
 
-// 一个组件有多个属性(n个属性对应一个视图) n个dep对应一个watcher
-// 一个属性对应多个组件
-// 多对多 
+function flushSchedulerQueue() {
+    let flushQueue = queue.slice(0);
+    queue = [];
+    has = {};
+    pending = false;
+    flushQueue.forEach(q => q.run()); // 在刷新的过程中可能还有新的watcher，重新放到queue中
+}
+
+function queueWatcher(watcher) {
+    const id = watcher.id
+    if (!has[id]) {
+        queue.push(watcher)
+        has[id] = true
+        // 不管update执行多少次,但是最终只刷新一轮
+        if (!pending) {
+            nextTick(flushSchedulerQueue, 0) //同步任务里面最后一次赋值(同步前面可能赋值多次)后,异步任务再执行更新,所以是批处理
+            pending = true
+        }
+    }
+}
+// 又来一次这种方法,多个执行合成一个:一个变量,开个异步
+// 控制更新顺序
+let callbacks = []
+let waiting = false
+function flushCallbacks() {
+    let cbs = callbacks.slice(0)
+    waiting = false
+    callbacks = []
+    cbs.forEach(cb => cb())
+}
+// nextTick不是创建了异步任务,而是将异步任务维护到队列中
+export function nextTick(cb) {
+    callbacks.push(cb)
+    if (!waiting) {
+        Promise.resolve().then(flushCallbacks)
+        waiting = true
+    }
+}
+
 
 export default Watcher
 
