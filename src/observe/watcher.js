@@ -8,6 +8,17 @@ import Dep from "./dep";
     一个数据对应多个组件
     多对多 
  * */
+
+
+/**
+ *  nextTick原理???
+ * 1.数据更新后不会立刻更新页面,而是异步更新.
+ * 2.数据更新会触发依赖这个数据的组件的watcher进行更新,会用一个队列缓冲一个事件循环中所有变更的数据,保存对应的watcher
+ * 3.nexttick会把队列中watcher的更新操作放到异步任务中,采用了优雅降级的方式,
+ * 原生的Promise.then、MutationObserver和setImmediate，上述三个都不支持最后使用setTimeout
+ * 4.异步任务执行完后,清空队列.如果要在页面更新后访问DOM的话,也要用nextTick方法,相当于在watcher更新的异步任务后面排一个异步任务
+ * 
+ * */ 
 let id = 0
 
 
