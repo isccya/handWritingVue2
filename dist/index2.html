@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body>
+    <div id="app">
+        <div style="color:red">{{ name }} {{ age }}</div>
+        <span> world </span>
+    </div>
+    <script src="vue.js"></script>
+    <script>
+        Vue.mixin ({
+            created(){
+                console.log('mixin1');
+            }
+        })
+        Vue.mixin ({
+            created(){
+                console.log('mixin2');
+            }
+        })
+        // 发布订阅 ===>订阅
+        const vm = new Vue({
+            data: {
+                name: 'cc',
+                age: 123,
+                job: {
+                    what: 'webFront'
+                },
+                hobby: ['js', 'vue', { a: 1 }]
+            },
+            el: '#app',
+            created(){
+                console.log("mixin3");
+            }
+        })
+        console.log(Vue.options);
+        console.log(vm.$options);
+        
+    </script>
+</body>
+
+</html>
