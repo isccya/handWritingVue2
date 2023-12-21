@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <div id="app">
+        <div style="color:red">{{ arr }} {{ a }}</div>
+        <span> world </span>
+    </div>
+    <script src="vue.js"></script>
+    <script>
+        const vm = new Vue({
+            data: {
+                arr: [1,2,3],//给数组本身增加一个dep 如果数组新增了某一项 可以触发dep
+                a:{a:1} //给对象也增加一个dep 如果后续用户增添了属性 可以触发dep
+            },
+            el: '#app',
+        })
+        vm.arr.push(100,200)
+    </script>
+</body>
+</html>

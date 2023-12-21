@@ -1,6 +1,7 @@
 let id = 0
 /**
- * dep每个属性都有,目的是收集watcher
+ * dep每个属性都有,目的是收集watcher,是在闭包上的私有属性.无法手动访问dep对象
+ * 每个对象也有,在对象__ob__上,这个属性就是observe实例.dep是在observe实例上
  * 
  * */
 class Dep {
@@ -17,7 +18,7 @@ class Dep {
     addSub(watcher) {
         this.subs.push(watcher)
     }
-    nodify() {
+    notify() {
         this.subs.forEach(watcher => watcher.update()) //告诉watcher要更新了
     }
 }

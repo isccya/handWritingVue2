@@ -175,6 +175,7 @@
         if (inserted) {
           ob.observeArray(inserted);
         }
+        ob.dep.notify(); //数组变化了,通知对应的watcher实现更新逻辑
         return result;
       };
     });
@@ -182,7 +183,8 @@
 
     var id$1 = 0;
     /**
-     * dep每个属性都有,目的是收集watcher
+     * dep每个属性都有,目的是收集watcher,是在闭包上的私有属性.无法手动访问dep对象
+     * 每个对象也有,在对象__ob__上,这个属性就是observe实例.dep是在observe实例上
      * 
      * */
     var Dep = /*#__PURE__*/function () {
@@ -205,8 +207,8 @@
           this.subs.push(watcher);
         }
       }, {
-        key: "nodify",
-        value: function nodify() {
+        key: "notify",
+        value: function notify() {
           this.subs.forEach(function (watcher) {
             return watcher.update();
           }); //告诉watcher要更新了
@@ -219,6 +221,9 @@
     var Observer = /*#__PURE__*/function () {
       function Observer(data) {
         _classCallCheck(this, Observer);
+        // 给每个对象添加收集功能
+        this.dep = new Dep();
+
         // Object,defineProperty只能劫持已经存在的属性
         Object.defineProperty(data, '__ob__', {
           //给数据添加了一个标识,如果数据上有_ob_说明这个数据被观测过了
@@ -251,16 +256,33 @@
         }
       }]);
       return Observer;
-    }(); // !!!最终定义对象属性为响应式的方法!!!
+    }();
+    function dependArray(value) {
+      for (var i = 0; i < value.length; i++) {
+        var current = value[i];
+        value[i].__ob__.dep.depend();
+        if (Array.isArray(current)) {
+          dependArray(current);
+        }
+      }
+    }
+
+    // !!!最终定义对象属性为响应式的方法!!!:get里依赖收集,借助了dep.set里依赖追踪
     function defineReactive(target, key, value) {
       //闭包 属性劫持
-      observe(value); //递归,值是对象,也对对象内部的值做劫持
-      var dep = new Dep(); //每一个属性都有dep
+      var childOb = observe(value); //递归,值是对象,也对对象内部的值做劫持 childOb用来收集依赖.(只有对象在observe中才会有返回值)
+      var dep = new Dep(); //每一个属性都有dep,因为闭包.注意!!!是因为闭包有dep属性,而不是dep在属性上!!!
       Object.defineProperty(target, key, {
         // ***在数据的get方法进行依赖收集,访问了数据===>组件依赖这些数据***
         get: function get() {
           if (Dep.target) {
             dep.depend(); //让这个属性记住当前的watcher
+            if (childOb) {
+              childOb.dep.depend(); //让数组和对象本身也实现依赖收集,数组会在变异方法被调用时候触发更新
+              if (Array.isArray(value)) {
+                dependArray(value);
+              }
+            }
           }
           return value;
         },
@@ -269,7 +291,7 @@
           if (newValue === value) return;
           observe(newValue);
           value = newValue;
-          dep.nodify(); //通知更新
+          dep.notify(); //通知更新
         }
       });
     }
@@ -278,9 +300,9 @@
       if (_typeof(data) !== 'object' || data === null) {
         return; //只对对象劫持
       }
-      if (data._ob_ instanceof Observer) {
+      if (data.__ob__ instanceof Observer) {
         //说明这个对象被代理过了
-        return data._ob_;
+        return data.__ob__;
       }
       return new Observer(data);
     }
@@ -544,7 +566,7 @@
         this.renderWatcher = options; //是一个渲染过程
         this.getter = fn; // getter意味着调用这个函数可以发生取值操作
         this.deps = []; // 后续 我们实现计算属性,和一些清理工作需要
-        this.depsId = new Set();
+        this.depsId = new Set(); //
         this.get();
       }
       _createClass(Watcher, [{
