@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <div id="app">
+        <div style="color:red">{{ firstName }}----{{ name }}---{{ name }}---{{ name }}</div>
+        <span> world </span>
+    </div>
+    <script src="vue.js"></script>
+    <script>
+        const vm = new Vue({
+            data: {
+                firstName:'c',
+                lastName:'c'
+            },
+            computed:{
+                name:{
+                    get(){
+                        console.log('计算属性里面的get方法run了');
+                        return this.firstName + this.lastName
+                    },
+                }
+            },
+            el: '#app',
+        })
+        vm.firstName = 123
+
+        // 计算属性,依赖的数据发生变化才会重复执行方法.(多次读取不会)计算属性要维护一个dirty属性,默认计算属性不会立刻执行.
+        // 计算属性就是一个defineProperty
+        // 计算属性也是一个watcher,默认渲染会创造一个watcher
+    </script>
+</body>
+</html>

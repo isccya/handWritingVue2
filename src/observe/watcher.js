@@ -1,4 +1,4 @@
-import Dep from "./dep";
+import Dep, { popTarget, pushTarget } from "./dep";
 /**
  * 每个组件对应一个watcher,页面渲染的逻辑放到watcher里
  * 每个属性有一个dep (属性是被观察者), watcher是观察者(属性变化了会通知观察者来更新)
@@ -18,7 +18,7 @@ import Dep from "./dep";
  * 原生的Promise.then、MutationObserver和setImmediate，上述三个都不支持最后使用setTimeout
  * 4.异步任务执行完后,清空队列.如果要在页面更新后访问DOM的话,也要用nextTick方法,相当于在watcher更新的异步任务后面排一个异步任务
  * 
- * */ 
+ * */
 let id = 0
 
 
@@ -30,29 +30,52 @@ class Watcher { //不同组件有不同的watcher ,目前只有根组件有
         this.renderWatcher = options //是一个渲染过程
         this.getter = fn; // getter意味着调用这个函数可以发生取值操作
         this.deps = []; // 后续 我们实现计算属性,和一些清理工作需要
-        this.depsId = new Set(); //
-        this.get()
+        this.depsId = new Set();
+        this.vm = vm
+
+
+
+        this.lazy = options.lazy //***lazy这个变量***只控制计算属性默认不加载,计算属性才会传,没传就是组件
+        this.dirty = this.lazy //dirty判断是否重新求值(默认为true)
+        // 不要立刻执行,懒执行
+        this.lazy ? undefined : this.get()
     }
     addDep(dep) { // 一个组件对应多个属性 重复的属性也不用记录
         let id = dep.id
         if (!this.depsId.has(id)) {
-            this.deps.push(id)
+            this.deps.push(dep)
             this.depsId.add(id)
             dep.addSub(this) //watcher已经记住dep并且去重,此时让dep记住watcher
         }
     }
+    evaluate() {
+        this.value = this.get() //计算属性:调用用户传入的get,将值保存在value中,更新数据为不脏的(不用再运行求值的)
+        this.dirty = false
+    }
     get() {
         // 用不到的数据就不会收集
-        Dep.target = this //把当前渲染组件的watcher放在全局上,组件渲染会访问数据,数据里get方法会把把该组件添加到自己的dep中
-        this.getter() //会去vm上取值 vm._update(vm._render) 取name 和age
-        Dep.target = null // 渲染完之后清空
+        pushTarget(this)  //把当前渲染组件的watcher放在全局上,组件渲染会访问数据,数据里get方法会把把该组件添加到自己的dep中
+        let value = this.getter.call(this.vm) //会去vm上取值 vm._update(vm._render) 取name 和age. 计算属性里面依赖的数据被取值后,会把计算属性的watcher放入自己队列中
+        popTarget(this) // 渲染完之后清空
+        return value
     }
     update() {
-        queueWatcher(this) //把当前watcher暂存,避免一个数据修改就更新整个页面
-        // this.get()
+        if (this.lazy) {
+            // 如果是计算属性依赖的值变化 就标识计算属性是脏值
+            this.dirty = true
+        } else {
+            queueWatcher(this) //把当前watcher暂存,避免一个数据修改就更新整个页面
+        }
     }
     run() {
         this.get()
+    }
+    depend() {
+        let i = this.deps.length;
+        while (i--) {
+        // 计算属性里面的属性的dep的depend
+            this.deps[i].depend() //让计算属性watcher也收集渲染watcher
+        }
     }
 }
 

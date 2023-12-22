@@ -147,40 +147,6 @@
       throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
     }
 
-    // 我们希望重写数组上的方法
-
-    var oldArrayProto = Array.prototype; //获取数组的原型
-
-    var newArrayProto = Object.create(oldArrayProto);
-    var methods = ['push', 'pop', 'shift', 'unshift', 'reverse', 'sort', 'splice'];
-    methods.forEach(function (method) {
-      newArrayProto[method] = function () {
-        var _oldArrayProto$method;
-        for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
-          args[_key] = arguments[_key];
-        }
-        //这里重写了数组的方法
-        // console.log(method);
-        var result = (_oldArrayProto$method = oldArrayProto[method]).call.apply(_oldArrayProto$method, [this].concat(args)); //内部调用原来的方法
-        var inserted;
-        var ob = this.__ob__;
-        switch (method) {
-          case 'push':
-          case 'unshift':
-            inserted = args;
-            break;
-          case 'splice':
-            inserted = args.slice(2);
-        }
-        if (inserted) {
-          ob.observeArray(inserted);
-        }
-        ob.dep.notify(); //数组变化了,通知对应的watcher实现更新逻辑
-        return result;
-      };
-    });
-    // console.log(newArrayProto);
-
     var id$1 = 0;
     /**
      * dep每个属性都有,目的是收集watcher,是在闭包上的私有属性.无法手动访问dep对象
@@ -217,6 +183,49 @@
       return Dep;
     }();
     Dep.target = null;
+    var stack = [];
+    function pushTarget(watcher) {
+      stack.push(watcher);
+      Dep.target = watcher;
+    }
+    function popTarget(watcher) {
+      stack.pop();
+      Dep.target = stack[stack.length - 1];
+    }
+
+    // 我们希望重写数组上的方法
+
+    var oldArrayProto = Array.prototype; //获取数组的原型
+
+    var newArrayProto = Object.create(oldArrayProto);
+    var methods = ['push', 'pop', 'shift', 'unshift', 'reverse', 'sort', 'splice'];
+    methods.forEach(function (method) {
+      newArrayProto[method] = function () {
+        var _oldArrayProto$method;
+        for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
+          args[_key] = arguments[_key];
+        }
+        //这里重写了数组的方法
+        // console.log(method);
+        var result = (_oldArrayProto$method = oldArrayProto[method]).call.apply(_oldArrayProto$method, [this].concat(args)); //内部调用原来的方法
+        var inserted;
+        var ob = this.__ob__;
+        switch (method) {
+          case 'push':
+          case 'unshift':
+            inserted = args;
+            break;
+          case 'splice':
+            inserted = args.slice(2);
+        }
+        if (inserted) {
+          ob.observeArray(inserted);
+        }
+        ob.dep.notify(); //数组变化了,通知对应的watcher实现更新逻辑
+        return result;
+      };
+    });
+    // console.log(newArrayProto);
 
     var Observer = /*#__PURE__*/function () {
       function Observer(data) {
@@ -260,7 +269,7 @@
     function dependArray(value) {
       for (var i = 0; i < value.length; i++) {
         var current = value[i];
-        value[i].__ob__.dep.depend();
+        value.__ob__.dep.depend();
         if (Array.isArray(current)) {
           dependArray(current);
         }
@@ -307,10 +316,147 @@
       return new Observer(data);
     }
 
+    /**
+     * 每个组件对应一个watcher,页面渲染的逻辑放到watcher里
+     * 每个属性有一个dep (属性是被观察者), watcher是观察者(属性变化了会通知观察者来更新)
+     * 
+     * 需要给每个数据增加一个dep,目的就是收集watcher
+        一个组件有多个数据(n个数据对应一个视图) n个dep对应一个watcher
+        一个数据对应多个组件
+        多对多 
+     * */
+
+    /**
+     *  nextTick原理???
+     * 1.数据更新后不会立刻更新页面,而是异步更新.
+     * 2.数据更新会触发依赖这个数据的组件的watcher进行更新,会用一个队列缓冲一个事件循环中所有变更的数据,保存对应的watcher
+     * 3.nexttick会把队列中watcher的更新操作放到异步任务中,采用了优雅降级的方式,
+     * 原生的Promise.then、MutationObserver和setImmediate，上述三个都不支持最后使用setTimeout
+     * 4.异步任务执行完后,清空队列.如果要在页面更新后访问DOM的话,也要用nextTick方法,相当于在watcher更新的异步任务后面排一个异步任务
+     * 
+     * */
+    var id = 0;
+    var Watcher = /*#__PURE__*/function () {
+      //不同组件有不同的watcher ,目前只有根组件有
+      function Watcher(vm, fn, options) {
+        _classCallCheck(this, Watcher);
+        this.id = id++;
+        this.renderWatcher = options; //是一个渲染过程
+        this.getter = fn; // getter意味着调用这个函数可以发生取值操作
+        this.deps = []; // 后续 我们实现计算属性,和一些清理工作需要
+        this.depsId = new Set();
+        this.vm = vm;
+        this.lazy = options.lazy; //***lazy这个变量***只控制计算属性默认不加载,计算属性才会传,没传就是组件
+        this.dirty = this.lazy; //dirty判断是否重新求值(默认为true)
+        // 不要立刻执行,懒执行
+        this.lazy ? undefined : this.get();
+      }
+      _createClass(Watcher, [{
+        key: "addDep",
+        value: function addDep(dep) {
+          // 一个组件对应多个属性 重复的属性也不用记录
+          var id = dep.id;
+          if (!this.depsId.has(id)) {
+            this.deps.push(dep);
+            this.depsId.add(id);
+            dep.addSub(this); //watcher已经记住dep并且去重,此时让dep记住watcher
+          }
+        }
+      }, {
+        key: "evaluate",
+        value: function evaluate() {
+          this.value = this.get(); //计算属性:调用用户传入的get,将值保存在value中,更新数据为不脏的(不用再运行求值的)
+          this.dirty = false;
+        }
+      }, {
+        key: "get",
+        value: function get() {
+          // 用不到的数据就不会收集
+          pushTarget(this); //把当前渲染组件的watcher放在全局上,组件渲染会访问数据,数据里get方法会把把该组件添加到自己的dep中
+          var value = this.getter.call(this.vm); //会去vm上取值 vm._update(vm._render) 取name 和age. 计算属性里面依赖的数据被取值后,会把计算属性的watcher放入自己队列中
+          popTarget(); // 渲染完之后清空
+          return value;
+        }
+      }, {
+        key: "update",
+        value: function update() {
+          if (this.lazy) {
+            // 如果是计算属性依赖的值变化 就标识计算属性是脏值
+            this.dirty = true;
+          } else {
+            queueWatcher(this); //把当前watcher暂存,避免一个数据修改就更新整个页面
+          }
+        }
+      }, {
+        key: "run",
+        value: function run() {
+          this.get();
+        }
+      }, {
+        key: "depend",
+        value: function depend() {
+          var i = this.deps.length;
+          while (i--) {
+            // 计算属性里面的属性的dep的depend
+            this.deps[i].depend(); //让计算属性watcher也收集渲染watcher
+          }
+        }
+      }]);
+      return Watcher;
+    }();
+    var queue = [];
+    var has = {}; //用对象去重watcher
+    var pending = false; //防抖
+
+    function flushSchedulerQueue() {
+      var flushQueue = queue.slice(0);
+      queue = [];
+      has = {};
+      pending = false;
+      flushQueue.forEach(function (q) {
+        return q.run();
+      }); // 在刷新的过程中可能还有新的watcher，重新放到queue中
+    }
+    function queueWatcher(watcher) {
+      var id = watcher.id;
+      if (!has[id]) {
+        queue.push(watcher);
+        has[id] = true;
+        // 不管update执行多少次,但是最终只刷新一轮
+        if (!pending) {
+          nextTick(flushSchedulerQueue); //同步任务里面最后一次赋值(同步前面可能赋值多次)后,异步任务再执行更新,所以是批处理
+          pending = true;
+        }
+      }
+    }
+    // 又来一次这种方法,多个执行合成一个:一个变量,开个异步
+    // 控制更新顺序
+    var callbacks = [];
+    var waiting = false;
+    function flushCallbacks() {
+      var cbs = callbacks.slice(0);
+      waiting = false;
+      callbacks = [];
+      cbs.forEach(function (cb) {
+        return cb();
+      });
+    }
+    // nextTick不是创建了异步任务,而是将异步任务维护到队列中
+    function nextTick(cb) {
+      callbacks.push(cb);
+      if (!waiting) {
+        Promise.resolve().then(flushCallbacks);
+        waiting = true;
+      }
+    }
+
     function initState(vm) {
       var opts = vm.$options;
       if (opts.data) {
         initData(vm);
+      }
+      if (opts.computed) {
+        initComputed(vm);
       }
     }
 
@@ -336,6 +482,46 @@
       for (var key in data) {
         proxy(vm, '_data', key);
       }
+    }
+    function initComputed(vm) {
+      var computed = vm.$options.computed; //获取用户传入的computed
+      var watchers = vm._computedWachers = {}; //将计算属性watcher保存到vm,因为后续还要访问属性的watcher
+      for (var key in computed) {
+        var userDef = computed[key];
+        // 需要监控 计算属性中get的变化
+        var fn = typeof userDef === 'function' ? userDef : userDef.get;
+
+        // 每一个计算属性创建一个watcher,fn不立刻执行,并将所有属性watcher放到对象中,对象放到vm上
+        watchers[key] = new Watcher(vm, fn, {
+          lazy: true
+        }); //第一次设置为true,不会立即执行计算
+        defineComputed(vm, key, userDef); //是vm,模板解析计算属性时候还是去实例身上取值,所以要把值defineProperty到vm上
+      }
+    }
+    function defineComputed(target, key, userDef) {
+      var setter = userDef.set || function () {};
+      Object.defineProperty(target, key, {
+        get: createComputedGetter(key),
+        set: setter
+      });
+    }
+
+    // 计算属性不会收集依赖,只会让自己的依赖属性去收集依赖
+    function createComputedGetter(key) {
+      //计算属性的getter方法
+      // 我们要检测是否要执行这个getter
+      return function () {
+        var watcher = this._computedWachers[key]; //获取到对应属性的watcher
+        if (watcher.dirty) {
+          //如果是脏,就去执行用户传入的参数
+          watcher.evaluate(); //求值后dirty变为false,下次就用缓存的值
+        }
+        if (Dep.target) {
+          //计算属性watcher出栈后 计算属性里面的属性还要上一层让渲染watcher更新
+          watcher.depend();
+        }
+        return watcher.value;
+      };
     }
 
     /**
@@ -536,116 +722,6 @@
       code = "with(this){return ".concat(code, "}");
       var render = new Function(code);
       return render;
-    }
-
-    /**
-     * 每个组件对应一个watcher,页面渲染的逻辑放到watcher里
-     * 每个属性有一个dep (属性是被观察者), watcher是观察者(属性变化了会通知观察者来更新)
-     * 
-     * 需要给每个数据增加一个dep,目的就是收集watcher
-        一个组件有多个数据(n个数据对应一个视图) n个dep对应一个watcher
-        一个数据对应多个组件
-        多对多 
-     * */
-
-    /**
-     *  nextTick原理???
-     * 1.数据更新后不会立刻更新页面,而是异步更新.
-     * 2.数据更新会触发依赖这个数据的组件的watcher进行更新,会用一个队列缓冲一个事件循环中所有变更的数据,保存对应的watcher
-     * 3.nexttick会把队列中watcher的更新操作放到异步任务中,采用了优雅降级的方式,
-     * 原生的Promise.then、MutationObserver和setImmediate，上述三个都不支持最后使用setTimeout
-     * 4.异步任务执行完后,清空队列.如果要在页面更新后访问DOM的话,也要用nextTick方法,相当于在watcher更新的异步任务后面排一个异步任务
-     * 
-     * */
-    var id = 0;
-    var Watcher = /*#__PURE__*/function () {
-      //不同组件有不同的watcher ,目前只有根组件有
-      function Watcher(vm, fn, options) {
-        _classCallCheck(this, Watcher);
-        this.id = id++;
-        this.renderWatcher = options; //是一个渲染过程
-        this.getter = fn; // getter意味着调用这个函数可以发生取值操作
-        this.deps = []; // 后续 我们实现计算属性,和一些清理工作需要
-        this.depsId = new Set(); //
-        this.get();
-      }
-      _createClass(Watcher, [{
-        key: "addDep",
-        value: function addDep(dep) {
-          // 一个组件对应多个属性 重复的属性也不用记录
-          var id = dep.id;
-          if (!this.depsId.has(id)) {
-            this.deps.push(id);
-            this.depsId.add(id);
-            dep.addSub(this); //watcher已经记住dep并且去重,此时让dep记住watcher
-          }
-        }
-      }, {
-        key: "get",
-        value: function get() {
-          // 用不到的数据就不会收集
-          Dep.target = this; //把当前渲染组件的watcher放在全局上,组件渲染会访问数据,数据里get方法会把把该组件添加到自己的dep中
-          this.getter(); //会去vm上取值 vm._update(vm._render) 取name 和age
-          Dep.target = null; // 渲染完之后清空
-        }
-      }, {
-        key: "update",
-        value: function update() {
-          queueWatcher(this); //把当前watcher暂存,避免一个数据修改就更新整个页面
-          // this.get()
-        }
-      }, {
-        key: "run",
-        value: function run() {
-          this.get();
-        }
-      }]);
-      return Watcher;
-    }();
-    var queue = [];
-    var has = {}; //用对象去重watcher
-    var pending = false; //防抖
-
-    function flushSchedulerQueue() {
-      var flushQueue = queue.slice(0);
-      queue = [];
-      has = {};
-      pending = false;
-      flushQueue.forEach(function (q) {
-        return q.run();
-      }); // 在刷新的过程中可能还有新的watcher，重新放到queue中
-    }
-    function queueWatcher(watcher) {
-      var id = watcher.id;
-      if (!has[id]) {
-        queue.push(watcher);
-        has[id] = true;
-        // 不管update执行多少次,但是最终只刷新一轮
-        if (!pending) {
-          nextTick(flushSchedulerQueue); //同步任务里面最后一次赋值(同步前面可能赋值多次)后,异步任务再执行更新,所以是批处理
-          pending = true;
-        }
-      }
-    }
-    // 又来一次这种方法,多个执行合成一个:一个变量,开个异步
-    // 控制更新顺序
-    var callbacks = [];
-    var waiting = false;
-    function flushCallbacks() {
-      var cbs = callbacks.slice(0);
-      waiting = false;
-      callbacks = [];
-      cbs.forEach(function (cb) {
-        return cb();
-      });
-    }
-    // nextTick不是创建了异步任务,而是将异步任务维护到队列中
-    function nextTick(cb) {
-      callbacks.push(cb);
-      if (!waiting) {
-        Promise.resolve().then(flushCallbacks);
-        waiting = true;
-      }
     }
 
     /**

@@ -31,7 +31,7 @@ class Observer {
 function dependArray(value) {
     for (let i = 0; i < value.length; i++) {
         let current = value[i]
-        value[i].__ob__.dep.depend()
+        value.__ob__.dep.depend()
         if (Array.isArray(current)) {
             dependArray(current)
         }
