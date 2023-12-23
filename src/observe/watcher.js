@@ -25,20 +25,27 @@ let id = 0
 
 
 class Watcher { //不同组件有不同的watcher ,目前只有根组件有
-    constructor(vm, fn, options) {
+    constructor(vm, exprOrFn, options,cb) {
         this.id = id++
         this.renderWatcher = options //是一个渲染过程
-        this.getter = fn; // getter意味着调用这个函数可以发生取值操作
+        if(typeof exprOrFn ==='string'){
+            this.getter = function(){
+                return vm[exprOrFn] // 侦听器watch中
+            }
+        }else{
+            this.getter = exprOrFn; //getter意味着调用这个函数可以发生取值操作
+        }
         this.deps = []; // 后续 我们实现计算属性,和一些清理工作需要
         this.depsId = new Set();
         this.vm = vm
-
+        this.user = options.user;//标识是否是用户自己的watcher
+        this.cb = cb
 
 
         this.lazy = options.lazy //***lazy这个变量***只控制计算属性默认不加载,计算属性才会传,没传就是组件
         this.dirty = this.lazy //dirty判断是否重新求值(默认为true)
         // 不要立刻执行,懒执行
-        this.lazy ? undefined : this.get()
+        this.value = this.lazy ? undefined : this.get()
     }
     addDep(dep) { // 一个组件对应多个属性 重复的属性也不用记录
         let id = dep.id
@@ -61,14 +68,18 @@ class Watcher { //不同组件有不同的watcher ,目前只有根组件有
     }
     update() {
         if (this.lazy) {
-            // 如果是计算属性依赖的值变化 就标识计算属性是脏值
+            // 如果是计算属性依赖的值变化(lazy标明这是计算属性watcher) 就标识计算属性是脏值
             this.dirty = true
         } else {
             queueWatcher(this) //把当前watcher暂存,避免一个数据修改就更新整个页面
         }
     }
     run() {
-        this.get()
+        let oldValue = this.value
+        let newValue = this.get()
+        if(this.user){
+            this.cb.call(this.vm,newValue,oldValue)
+        }
     }
     depend() {
         let i = this.deps.length;

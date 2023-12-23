@@ -338,18 +338,26 @@
     var id = 0;
     var Watcher = /*#__PURE__*/function () {
       //不同组件有不同的watcher ,目前只有根组件有
-      function Watcher(vm, fn, options) {
+      function Watcher(vm, exprOrFn, options, cb) {
         _classCallCheck(this, Watcher);
         this.id = id++;
         this.renderWatcher = options; //是一个渲染过程
-        this.getter = fn; // getter意味着调用这个函数可以发生取值操作
+        if (typeof exprOrFn === 'string') {
+          this.getter = function () {
+            return vm[exprOrFn]; // 侦听器watch中
+          };
+        } else {
+          this.getter = exprOrFn; //getter意味着调用这个函数可以发生取值操作
+        }
         this.deps = []; // 后续 我们实现计算属性,和一些清理工作需要
         this.depsId = new Set();
         this.vm = vm;
+        this.user = options.user; //标识是否是用户自己的watcher
+        this.cb = cb;
         this.lazy = options.lazy; //***lazy这个变量***只控制计算属性默认不加载,计算属性才会传,没传就是组件
         this.dirty = this.lazy; //dirty判断是否重新求值(默认为true)
         // 不要立刻执行,懒执行
-        this.lazy ? undefined : this.get();
+        this.value = this.lazy ? undefined : this.get();
       }
       _createClass(Watcher, [{
         key: "addDep",
@@ -381,7 +389,7 @@
         key: "update",
         value: function update() {
           if (this.lazy) {
-            // 如果是计算属性依赖的值变化 就标识计算属性是脏值
+            // 如果是计算属性依赖的值变化(lazy标明这是计算属性watcher) 就标识计算属性是脏值
             this.dirty = true;
           } else {
             queueWatcher(this); //把当前watcher暂存,避免一个数据修改就更新整个页面
@@ -390,7 +398,11 @@
       }, {
         key: "run",
         value: function run() {
-          this.get();
+          var oldValue = this.value;
+          var newValue = this.get();
+          if (this.user) {
+            this.cb.call(this.vm, newValue, oldValue);
+          }
         }
       }, {
         key: "depend",
@@ -458,6 +470,29 @@
       if (opts.computed) {
         initComputed(vm);
       }
+      if (opts.watch) {
+        initWatch(vm);
+      }
+    }
+    function initWatch(vm) {
+      var watch = vm.$options.watch;
+      for (var key in watch) {
+        var handler = watch[key]; //字符串 数组 函数
+        if (Array.isArray(handler)) {
+          for (var i = 0; i < handler.length; i++) {
+            createWatcher(vm, key, handler[i]);
+          }
+        } else {
+          createWatcher(vm, key, handler);
+        }
+      }
+    }
+    function createWatcher(vm, key, handler) {
+      //字符串 函数 (对象不考虑)
+      if (typeof handler === 'string') {
+        handler = vm[handler];
+      }
+      return vm.$watch(key, handler);
     }
 
     // 解决访问vm属性要vm_data.name这种写法,直接vm.name
@@ -491,7 +526,7 @@
         // 需要监控 计算属性中get的变化
         var fn = typeof userDef === 'function' ? userDef : userDef.get;
 
-        // 每一个计算属性创建一个watcher,fn不立刻执行,并将所有属性watcher放到对象中,对象放到vm上
+        // 每一个计算属性创建一个watcher,fn不立刻执行(lazy为true),并将所有属性watcher放到对象中,对象放到组件实例上
         watchers[key] = new Watcher(vm, fn, {
           lazy: true
         }); //第一次设置为true,不会立即执行计算
@@ -912,6 +947,13 @@
     initMixin(Vue); //给vue对象扩展了init方法
     initLifeCycle(Vue); //添加vue的生命周期
     initGlobalAPI(Vue); // 添加vue的全局方法
+
+    Vue.prototype.$watch = function (exprOrFn, cb) {
+      // firstname值变化,执行cb函数即可
+      new Watcher(this, exprOrFn, {
+        user: true
+      }, cb);
+    };
 
     return Vue;
 
