@@ -1,6 +1,6 @@
 import Dep from './observe/dep.js';
 import { observe } from './observe/index.js'
-import Watcher from './observe/watcher.js';
+import Watcher, { nextTick } from './observe/watcher.js';
 export function initState(vm) {
     const opts = vm.$options;
     if (opts.data) {
@@ -96,4 +96,13 @@ function createComputedGetter(key) {//计算属性的getter方法
         }
         return watcher.value
     }
+}
+
+export function initStateMixin(Vue){
+    Vue.prototype.$nextTick = nextTick
+    Vue.prototype.$watch = function (exprOrFn, cb, options = {}) {
+        // firstname值变化,执行cb函数即可
+        new Watcher(this, exprOrFn,{user:true},cb)
+    }
+    
 }

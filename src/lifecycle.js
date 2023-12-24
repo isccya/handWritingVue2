@@ -1,54 +1,14 @@
 import Watcher from "./observe/watcher";
 import { createElementVNode, createTextVNode } from "./vdom";
+import { patch } from "./vdom/patch";
 
-// 创建真实DOM
-function createElm(vnode) {
-    let { tag, data, children, text } = vnode;
-    if (typeof tag == 'string') { //元素节点
-        vnode.el = document.createElement(tag)
-        patchProps(vnode.el, data);
-        children.forEach(child => {
-            vnode.el.appendChild(createElm(child))
-        });
-    } else { //文本节点
-        vnode.el = document.createTextNode(text)
-    }
-    return vnode.el;
-}
-// 创建真实DOM中的元素节点时候添加元素属性
-function patchProps(el, props) {
-    for (let key in props) {
-        if (key === 'style') {
-            for (let styleName in props.style) {
-                el.style[styleName] = props.style[styleName]
-            }
-        } else {
-            el.setAttribute(key, props[key])
-        }
-    }
-}
-
-// 写的是初渲染过程
-function patch(oldVnode, vnode) {
-    const isRealElement = oldVnode.nodeType
-    if (isRealElement) {
-        const elm = oldVnode; //获取真实DOM
-        const parentElm = elm.parentNode //拿到父元素
-        const newElm = createElm(vnode) //创建新DOM
-        parentElm.insertBefore(newElm, elm.nextSibling) //替换
-        parentElm.removeChild(elm) //删除老节点
-        return newElm
-    } else {
-        // diff算法
-    }
-}
 
 export function initLifeCycle(Vue) {
     // 将vnode转化成真实dom
     Vue.prototype._update = function (vnode) {
         const vm = this
         const el = vm.$el
-        //patch方法里面把虚拟节点转换为真实节点,并把模板中替换旧节点
+        //patch方法里面把虚拟节点转换为真实节点,并把模板中替换旧节点,采用diff算法
         vm.$el = patch(el, vnode)
     }
 
@@ -76,7 +36,7 @@ export function initLifeCycle(Vue) {
 
 //挂载
 export function mountComponent(vm, el) {
-    vm.$el = el // 这里的el 是通过querySelector处理过的
+    vm.$el = el // 这里的el 是通过querySelector处理过的,我们要挂载到的位置
 
     // 1.调用render方法产生虚拟节点 虚拟DOM
     const updateComponent = () => {
@@ -84,7 +44,7 @@ export function mountComponent(vm, el) {
     }
     new Watcher(vm, updateComponent, true) //true用于标识是一个渲染watcher
 
-    // 2.根据虚拟DOM产生真实DOM 
+    // 2.根据虚拟DOM产生真实DOM
 
     // 3.插入到el元素中
 

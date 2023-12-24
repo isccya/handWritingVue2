@@ -1,4 +1,4 @@
-import Dep, { popTarget, pushTarget } from "./dep";
+import  { popTarget, pushTarget } from "./dep";
 /**
  * 每个组件对应一个watcher,页面渲染的逻辑放到watcher里
  * 每个属性有一个dep (属性是被观察者), watcher是观察者(属性变化了会通知观察者来更新)

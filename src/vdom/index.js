@@ -1,5 +1,5 @@
 /**
- * 这个文件是创建虚拟节点
+ * 这个文件是渲染函数render执行时候创建虚拟节点
  * */ 
 
 // h()  _c()
@@ -29,4 +29,9 @@ function vnode(vm, tag, key, data, children, text) {
         text
         // ....
     }
+}
+
+// 判断两个虚拟节点是否相同
+export function isSameVnode(vnode1,vnode2){
+    return vnode1.tag === vnode2.tag && vnode1.key === vnode2.key; // 没有key则key值是undefined,也认为是同节点
 }

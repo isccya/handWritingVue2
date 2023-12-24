@@ -1,5 +1,15 @@
 import { parseHTML } from "./parse";
-
+/**
+ * 
+ * 
+ * 
+ * 
+ * compileToFunction传入一个模板,将模板变为AST语法树,AST语法树代码生成渲染函数
+ * 
+ * 
+ * 
+ * 
+ * */ 
 function genProps(attrs) {
     let str = ''// {name,value}
     for (let i = 0; i < attrs.length; i++) {
@@ -17,6 +27,8 @@ function genProps(attrs) {
     }
     return `{${str.slice(0, -1)}}`
 }
+
+
 const defaultTagRE = /\{\{((?:.|\r?\n)+?)\}\}/g; // {{ asdsadsa }}  匹配到的内容就是我们表达式的变量
 function gen(node) {
     if (node.type === 1) {
@@ -59,6 +71,7 @@ function codegen(ast) {
 
     return code;
 }
+
 
 export function compileToFunction(template) {
 

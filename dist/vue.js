@@ -147,6 +147,221 @@
       throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
     }
 
+    /**
+     * 
+     * 这个文件夹***生成AST语法树***
+     * 
+     * 
+     * 获取模板字符串后,从头到尾先解析开始标签,获得其标签名,属性,和结束标签和标签文本内容.模板字符串不断裁剪到为空.
+     * 根据开始标签,文本,结束标签创建AST节点,注意根节点的判断,以及父子节点关系,通过一个栈数据结构判断父子节点
+     * 开始标签会进栈,结束标签出栈,文本会直接作为当前父节点的属性,栈结尾的元素即为当前的要进栈元素的***父节点***
+     * 最终形成AST语法树.每一层是一个节点,有父节点,子节点,和自身属性.
+     * 
+     * */
+
+    var ncname = "[a-zA-Z_][\\-\\.0-9_a-zA-Z]*";
+    var qnameCapture = "((?:".concat(ncname, "\\:)?").concat(ncname, ")");
+    var startTagOpen = new RegExp("^<".concat(qnameCapture)); // 他匹配到的分组是一个 标签名  <xxx 匹配到的是开始 标签的名字
+    var endTag = new RegExp("^<\\/".concat(qnameCapture, "[^>]*>")); // 匹配的是</xxxx>  最终匹配到的分组就是结束标签的名字
+    var attribute = /^\s*([^\s"'<>\/=]+)(?:\s*(=)\s*(?:"([^"]*)"+|'([^']*)'+|([^\s"'=<>`]+)))?/; // 匹配属性
+    // 第一个分组就是属性的key value 就是 分组3/分组4/分组五
+    var startTagClose = /^\s*(\/?)>/; // <div> <br/>
+
+    // vue3 采用的不是使用正则
+    // 对模板进行编译处理  
+    function parseHTML(html) {
+      var ELEMENT_TYPE = 1;
+      var TEXT_TYPE = 3;
+      var stack = []; // 用于存放元素的
+      var currentParent; // 指向的是栈中的最后一个
+      var root;
+      function createASTElement(tag, attrs) {
+        return {
+          tag: tag,
+          type: ELEMENT_TYPE,
+          children: [],
+          attrs: attrs,
+          parent: null
+        };
+      }
+      function start(tag, attrs) {
+        var node = createASTElement(tag, attrs); //创建一个ast节点
+        if (!root) {
+          //没有根节点,当前元素就是根节点
+          root = node;
+        }
+        if (currentParent) {
+          node.parent = currentParent; //子知父
+          currentParent.children.push(node); //父知子
+        }
+        stack.push(node);
+        currentParent = node; //父节点为栈中最后一个元素
+      }
+      function chars(text) {
+        //文本放到当前指向的节点
+        text = text.replace(/\s/g, '');
+        text && currentParent.children.push({
+          type: TEXT_TYPE,
+          text: text,
+          parent: currentParent
+        });
+      }
+      function end(tag) {
+        stack.pop(); //弹出最后一个
+        currentParent = stack[stack.length - 1];
+      }
+
+      // 模板解析完多少,就前进多少
+      function advance(n) {
+        html = html.substring(n);
+      }
+
+      // 解析开始标签及其里面的属性
+      function parseStartTag() {
+        var start = html.match(startTagOpen);
+        // 1.匹配到开始标签
+        if (start) {
+          var match = {
+            tagName: start[1],
+            //标签名
+            attrs: []
+          };
+          advance(start[0].length);
+          // 2.如果不是开始标签的结束,就一直匹配属性,把属性值放入match.attrs中
+          var attr, _end;
+          while (!(_end = html.match(startTagClose)) && (attr = html.match(attribute))) {
+            advance(attr[0].length);
+            match.attrs.push({
+              name: attr[1],
+              value: attr[3] || attr[4] || attr[5]
+            } || true);
+          }
+          // 3.匹配到结束符号
+          if (_end) {
+            advance(_end[0].length);
+          }
+          return match;
+        }
+        return false; //不是开始标签
+      }
+      while (html) {
+        // 如果textEnd 为0 说明是一个开始标签或者结束标签
+        // 如果textEnd > 0说明就是文本的结束位置
+        var textEnd = html.indexOf('<'); // 如果indexOf中的索引是0 则说明是个标签
+        if (textEnd === 0) {
+          var startTagMatch = parseStartTag(); //开始标签的匹配
+          if (startTagMatch) {
+            start(startTagMatch.tagName, startTagMatch.attrs);
+            continue;
+          }
+          var endTagMatch = html.match(endTag);
+          if (endTagMatch) {
+            end(endTagMatch[1]);
+            advance(endTagMatch[0].length);
+            continue;
+          }
+        }
+        if (textEnd > 0) {
+          var text = html.substring(0, textEnd); //文本内容
+          if (text) {
+            chars(text);
+            advance(text.length); //解析到的文本
+          }
+        }
+      }
+      return root;
+    }
+
+    /**
+     * 
+     * 
+     * 
+     * 
+     * compileToFunction传入一个模板,将模板变为AST语法树,AST语法树代码生成渲染函数
+     * 
+     * 
+     * 
+     * 
+     * */
+    function genProps(attrs) {
+      var str = ''; // {name,value}
+      var _loop = function _loop() {
+        var attr = attrs[i];
+        if (attr.name === 'style') {
+          // color:red;background:red => {color:'red'}
+          var obj = {};
+          attr.value.split(';').forEach(function (item) {
+            // qs 库
+            var _item$split = item.split(':'),
+              _item$split2 = _slicedToArray(_item$split, 2),
+              key = _item$split2[0],
+              value = _item$split2[1];
+            obj[key] = value;
+          });
+          attr.value = obj;
+        }
+        str += "".concat(attr.name, ":").concat(JSON.stringify(attr.value), ","); // a:b,c:d,
+      };
+      for (var i = 0; i < attrs.length; i++) {
+        _loop();
+      }
+      return "{".concat(str.slice(0, -1), "}");
+    }
+    var defaultTagRE = /\{\{((?:.|\r?\n)+?)\}\}/g; // {{ asdsadsa }}  匹配到的内容就是我们表达式的变量
+    function gen(node) {
+      if (node.type === 1) {
+        return codegen(node);
+      } else {
+        // 文本
+        var text = node.text;
+        if (!defaultTagRE.test(text)) {
+          return "_v(".concat(JSON.stringify(text), ")");
+        } else {
+          //_v( _s(name)+'hello' + _s(name))
+          var tokens = [];
+          var match;
+          defaultTagRE.lastIndex = 0;
+          var lastIndex = 0;
+          // split
+          while (match = defaultTagRE.exec(text)) {
+            var index = match.index; // 匹配的位置  {{name}} hello  {{name}} hello 
+            if (index > lastIndex) {
+              tokens.push(JSON.stringify(text.slice(lastIndex, index)));
+            }
+            tokens.push("_s(".concat(match[1].trim(), ")"));
+            lastIndex = index + match[0].length;
+          }
+          if (lastIndex < text.length) {
+            tokens.push(JSON.stringify(text.slice(lastIndex)));
+          }
+          return "_v(".concat(tokens.join('+'), ")");
+        }
+      }
+    }
+    function genChildren(children) {
+      return children.map(function (child) {
+        return gen(child);
+      }).join(',');
+    }
+    function codegen(ast) {
+      var children = genChildren(ast.children);
+      var code = "_c('".concat(ast.tag, "',").concat(ast.attrs.length > 0 ? genProps(ast.attrs) : 'null').concat(ast.children.length ? ",".concat(children) : '', ")");
+      return code;
+    }
+    function compileToFunction(template) {
+      // 1.将template转换为AST语法树
+      var ast = parseHTML(template);
+
+      // 2.生成render方法(render方法执行后返回的是虚拟DOM)
+      var code = codegen(ast);
+
+      // 模板引擎的实现原理 就是 with  + new Function 
+
+      code = "with(this){return ".concat(code, "}");
+      var render = new Function(code);
+      return render;
+    }
+
     var id$1 = 0;
     /**
      * dep每个属性都有,目的是收集watcher,是在闭包上的私有属性.无法手动访问dep对象
@@ -558,209 +773,18 @@
         return watcher.value;
       };
     }
-
-    /**
-     * 获取模板字符串后,从头到尾先解析开始标签,获得其标签名,属性,和结束标签和标签文本内容.模板字符串不断裁剪到为空.
-     * 根据开始标签,文本,结束标签创建AST节点,注意根节点的判断,以及父子节点关系,通过一个栈数据结构判断父子节点
-     * 开始标签会进栈,结束标签出栈,文本会直接作为当前父节点的属性,栈结尾的元素即为当前的要进栈元素的***父节点***
-     * 最终形成AST语法树.每一层是一个节点,有父节点,子节点,和自身属性.
-     * 
-     * */
-
-    var ncname = "[a-zA-Z_][\\-\\.0-9_a-zA-Z]*";
-    var qnameCapture = "((?:".concat(ncname, "\\:)?").concat(ncname, ")");
-    var startTagOpen = new RegExp("^<".concat(qnameCapture)); // 他匹配到的分组是一个 标签名  <xxx 匹配到的是开始 标签的名字
-    var endTag = new RegExp("^<\\/".concat(qnameCapture, "[^>]*>")); // 匹配的是</xxxx>  最终匹配到的分组就是结束标签的名字
-    var attribute = /^\s*([^\s"'<>\/=]+)(?:\s*(=)\s*(?:"([^"]*)"+|'([^']*)'+|([^\s"'=<>`]+)))?/; // 匹配属性
-    // 第一个分组就是属性的key value 就是 分组3/分组4/分组五
-    var startTagClose = /^\s*(\/?)>/; // <div> <br/>
-
-    // vue3 采用的不是使用正则
-    // 对模板进行编译处理  
-    function parseHTML(html) {
-      var ELEMENT_TYPE = 1;
-      var TEXT_TYPE = 3;
-      var stack = []; // 用于存放元素的
-      var currentParent; // 指向的是栈中的最后一个
-      var root;
-      function createASTElement(tag, attrs) {
-        return {
-          tag: tag,
-          type: ELEMENT_TYPE,
-          children: [],
-          attrs: attrs,
-          parent: null
-        };
-      }
-      function start(tag, attrs) {
-        var node = createASTElement(tag, attrs); //创建一个ast节点
-        if (!root) {
-          //没有根节点,当前元素就是根节点
-          root = node;
-        }
-        if (currentParent) {
-          node.parent = currentParent; //子知父
-          currentParent.children.push(node); //父知子
-        }
-        stack.push(node);
-        currentParent = node; //父节点为栈中最后一个元素
-      }
-      function chars(text) {
-        //文本放到当前指向的节点
-        text = text.replace(/\s/g, '');
-        text && currentParent.children.push({
-          type: TEXT_TYPE,
-          text: text,
-          parent: currentParent
-        });
-      }
-      function end(tag) {
-        stack.pop(); //弹出最后一个
-        currentParent = stack[stack.length - 1];
-      }
-
-      // 模板解析完多少,就前进多少
-      function advance(n) {
-        html = html.substring(n);
-      }
-
-      // 解析开始标签及其里面的属性
-      function parseStartTag() {
-        var start = html.match(startTagOpen);
-        // 1.匹配到开始标签
-        if (start) {
-          var match = {
-            tagName: start[1],
-            //标签名
-            attrs: []
-          };
-          advance(start[0].length);
-          // 2.如果不是开始标签的结束,就一直匹配属性,把属性值放入match.attrs中
-          var attr, _end;
-          while (!(_end = html.match(startTagClose)) && (attr = html.match(attribute))) {
-            advance(attr[0].length);
-            match.attrs.push({
-              name: attr[1],
-              value: attr[3] || attr[4] || attr[5]
-            } || true);
-          }
-          // 3.匹配到结束符号
-          if (_end) {
-            advance(_end[0].length);
-          }
-          return match;
-        }
-        return false; //不是开始标签
-      }
-      while (html) {
-        // 如果textEnd 为0 说明是一个开始标签或者结束标签
-        // 如果textEnd > 0说明就是文本的结束位置
-        var textEnd = html.indexOf('<'); // 如果indexOf中的索引是0 则说明是个标签
-        if (textEnd === 0) {
-          var startTagMatch = parseStartTag(); //开始标签的匹配
-          if (startTagMatch) {
-            start(startTagMatch.tagName, startTagMatch.attrs);
-            continue;
-          }
-          var endTagMatch = html.match(endTag);
-          if (endTagMatch) {
-            end(endTagMatch[1]);
-            advance(endTagMatch[0].length);
-            continue;
-          }
-        }
-        if (textEnd > 0) {
-          var text = html.substring(0, textEnd); //文本内容
-          if (text) {
-            chars(text);
-            advance(text.length); //解析到的文本
-          }
-        }
-      }
-      return root;
-    }
-
-    function genProps(attrs) {
-      var str = ''; // {name,value}
-      var _loop = function _loop() {
-        var attr = attrs[i];
-        if (attr.name === 'style') {
-          // color:red;background:red => {color:'red'}
-          var obj = {};
-          attr.value.split(';').forEach(function (item) {
-            // qs 库
-            var _item$split = item.split(':'),
-              _item$split2 = _slicedToArray(_item$split, 2),
-              key = _item$split2[0],
-              value = _item$split2[1];
-            obj[key] = value;
-          });
-          attr.value = obj;
-        }
-        str += "".concat(attr.name, ":").concat(JSON.stringify(attr.value), ","); // a:b,c:d,
+    function initStateMixin(Vue) {
+      Vue.prototype.$nextTick = nextTick;
+      Vue.prototype.$watch = function (exprOrFn, cb) {
+        // firstname值变化,执行cb函数即可
+        new Watcher(this, exprOrFn, {
+          user: true
+        }, cb);
       };
-      for (var i = 0; i < attrs.length; i++) {
-        _loop();
-      }
-      return "{".concat(str.slice(0, -1), "}");
-    }
-    var defaultTagRE = /\{\{((?:.|\r?\n)+?)\}\}/g; // {{ asdsadsa }}  匹配到的内容就是我们表达式的变量
-    function gen(node) {
-      if (node.type === 1) {
-        return codegen(node);
-      } else {
-        // 文本
-        var text = node.text;
-        if (!defaultTagRE.test(text)) {
-          return "_v(".concat(JSON.stringify(text), ")");
-        } else {
-          //_v( _s(name)+'hello' + _s(name))
-          var tokens = [];
-          var match;
-          defaultTagRE.lastIndex = 0;
-          var lastIndex = 0;
-          // split
-          while (match = defaultTagRE.exec(text)) {
-            var index = match.index; // 匹配的位置  {{name}} hello  {{name}} hello 
-            if (index > lastIndex) {
-              tokens.push(JSON.stringify(text.slice(lastIndex, index)));
-            }
-            tokens.push("_s(".concat(match[1].trim(), ")"));
-            lastIndex = index + match[0].length;
-          }
-          if (lastIndex < text.length) {
-            tokens.push(JSON.stringify(text.slice(lastIndex)));
-          }
-          return "_v(".concat(tokens.join('+'), ")");
-        }
-      }
-    }
-    function genChildren(children) {
-      return children.map(function (child) {
-        return gen(child);
-      }).join(',');
-    }
-    function codegen(ast) {
-      var children = genChildren(ast.children);
-      var code = "_c('".concat(ast.tag, "',").concat(ast.attrs.length > 0 ? genProps(ast.attrs) : 'null').concat(ast.children.length ? ",".concat(children) : '', ")");
-      return code;
-    }
-    function compileToFunction(template) {
-      // 1.将template转换为AST语法树
-      var ast = parseHTML(template);
-
-      // 2.生成render方法(render方法执行后返回的是虚拟DOM)
-      var code = codegen(ast);
-
-      // 模板引擎的实现原理 就是 with  + new Function 
-
-      code = "with(this){return ".concat(code, "}");
-      var render = new Function(code);
-      return render;
     }
 
     /**
-     * 这个文件是创建虚拟节点
+     * 这个文件是渲染函数render执行时候创建虚拟节点
      * */
 
     // h()  _c()
@@ -797,6 +821,11 @@
       };
     }
 
+    // 判断两个虚拟节点是否相同
+    function isSameVnode(vnode1, vnode2) {
+      return vnode1.tag === vnode2.tag && vnode1.key === vnode2.key; // 没有key则key值是undefined,也认为是同节点
+    }
+
     // 创建真实DOM
     function createElm(vnode) {
       var tag = vnode.tag,
@@ -806,7 +835,7 @@
       if (typeof tag == 'string') {
         //元素节点
         vnode.el = document.createElement(tag);
-        patchProps(vnode.el, data);
+        patchProps(vnode.el, {}, data);
         children.forEach(function (child) {
           vnode.el.appendChild(createElm(child));
         });
@@ -817,19 +846,35 @@
       return vnode.el;
     }
     // 创建真实DOM中的元素节点时候添加元素属性
-    function patchProps(el, props) {
-      for (var key in props) {
-        if (key === 'style') {
+    function patchProps(el, oldProps, props) {
+      // 老的属性中有,新的没有,要删除老的
+      var oldStyles = oldProps.style || {};
+      var newStyles = props.style || {};
+      for (var key in oldStyles) {
+        //老的样式有,新没有则删除
+        if (!newStyles[key]) {
+          el.style[key] = '';
+        }
+      }
+      for (var _key in oldProps) {
+        //老的属性有,新没有则删除
+        if (!props[_key]) {
+          el.removeAttribute(_key);
+        }
+      }
+      for (var _key2 in props) {
+        // 把新的属性全部放上去
+        if (_key2 === 'style') {
           for (var styleName in props.style) {
             el.style[styleName] = props.style[styleName];
           }
         } else {
-          el.setAttribute(key, props[key]);
+          el.setAttribute(_key2, props[_key2]);
         }
       }
     }
 
-    // 写的是初渲染过程
+    // 写的是渲染过程,把真实DOM放到页面中了,并且返回新创建的真实DOM
     function patch(oldVnode, vnode) {
       var isRealElement = oldVnode.nodeType;
       if (isRealElement) {
@@ -839,14 +884,76 @@
         parentElm.insertBefore(newElm, elm.nextSibling); //替换
         parentElm.removeChild(elm); //删除老节点
         return newElm;
+      } else {
+        /**
+         * diff算法
+         * 1. 两个节点不是同一个节点 直接删除老的换上新的
+         * 2. 两个节点是同一个节点(判断节点的tag和key) 比较两个节点的属性是否有异同(复用老的节点,将新的属性更新)
+         * 3. 节点比较完比较两个人儿子
+         * */
+        return patchVnode(oldVnode, vnode);
+        // 不是相同节点
       }
     }
+
+    // diff算法比较两个节点
+    function patchVnode(oldVnode, vnode) {
+      // 不是相同节点直接替换
+      if (!isSameVnode(oldVnode, vnode)) {
+        var _el = createElm(vnode);
+        oldVnode.el.parentNode.replaceChild(_el, oldVnode.el); // 用老节点的父亲替换
+        return _el;
+      }
+      // 是相同节点
+      var el = vnode.el = oldVnode.el; // 复用老节点的真实DOM元素
+      if (!oldVnode.tag) {
+        //是文本
+        if (oldVnode.text !== vnode.text) {
+          el.textContent = vnode.text; //用新文本覆盖老的
+        }
+      }
+      // 是标签 是标签我们需要对比标签的属性
+      patchProps(el, oldVnode.data, vnode.data);
+
+      // 比较儿子节点 比较时候 一方有儿子,一方没儿子
+
+      // 两方都有儿子
+
+      var oldChildren = oldVnode.children || {};
+      var newChildren = vnode.children || {};
+      if (oldChildren.length > 0 && newChildren.length > 0) {
+        // 完整的diff算法,比较两个的儿子
+        updateChildren(el, oldChildren, newChildren);
+      } else if (newChildren.length > 0) {
+        //没有老的,有新的
+        mountChildren(el, newChildren);
+      } else if (newChildren.length > 0) {
+        //没有新的,有老的
+        el.innerHTML = ''; //可以循环删除
+      }
+      return el;
+    }
+    function mountChildren(el, newChildren) {
+      for (var i = 0; i < newChildren.length; i++) {
+        el.appendChild(createElm(child));
+      }
+    }
+    function updateChildren(el, oldChildren, newChildren) {
+      var oldEndIndex = oldChildren.length - 1;
+      var newEndIndex = newChildren.length - 1;
+      var oldStartVnode = oldChildren[0];
+      var newStartVnode = newChildren[0];
+      var oldEndVnode = oldChildren[oldEndIndex];
+      var newEndVnode = newChildren[newEndIndex];
+      console.log(oldStartVnode, newStartVnode, oldEndVnode, newEndVnode);
+    }
+
     function initLifeCycle(Vue) {
       // 将vnode转化成真实dom
       Vue.prototype._update = function (vnode) {
         var vm = this;
         var el = vm.$el;
-        //patch方法里面把虚拟节点转换为真实节点,并把模板中替换旧节点
+        //patch方法里面把虚拟节点转换为真实节点,并把模板中替换旧节点,采用diff算法
         vm.$el = patch(el, vnode);
       };
 
@@ -870,7 +977,7 @@
 
     //挂载
     function mountComponent(vm, el) {
-      vm.$el = el; // 这里的el 是通过querySelector处理过的
+      vm.$el = el; // 这里的el 是通过querySelector处理过的,我们要挂载到的位置
 
       // 1.调用render方法产生虚拟节点 虚拟DOM
       var updateComponent = function updateComponent() {
@@ -878,7 +985,7 @@
       };
       new Watcher(vm, updateComponent, true); //true用于标识是一个渲染watcher
 
-      // 2.根据虚拟DOM产生真实DOM 
+      // 2.根据虚拟DOM产生真实DOM
 
       // 3.插入到el元素中
     }
@@ -916,7 +1023,13 @@
         var vm = this;
         el = document.querySelector(el);
         var ops = vm.$options;
-        // render==>template==>el.outerHTML
+        /**
+         * 
+         * 
+         * render==>template==>el.outerHTML
+         * 
+         * 
+         * */
         if (!ops.render) {
           //先查找一下有没有写render函数
           var template; //没有render看一下是否写了template,没写template采用外部的template
@@ -925,7 +1038,8 @@
             template = el.outerHTML;
           } else {
             if (el) {
-              template = ops.template; //如果有el,则采用模板内容
+              // 只传template的话就要手动挂载(见chatGPT).这里代码没问题
+              template = ops.template; //采用模板内容
             }
           }
           // 写了template就用写了的template
@@ -943,17 +1057,33 @@
       //options就是用户的选项,包括data,computed等等
       this._init(options);
     }
-    Vue.prototype.$nextTick = nextTick;
     initMixin(Vue); //给vue对象扩展了init方法
     initLifeCycle(Vue); //添加vue的生命周期
     initGlobalAPI(Vue); // 添加vue的全局方法
+    initStateMixin(Vue); //实现了nextTick $watch
 
-    Vue.prototype.$watch = function (exprOrFn, cb) {
-      // firstname值变化,执行cb函数即可
-      new Watcher(this, exprOrFn, {
-        user: true
-      }, cb);
-    };
+    // ----------------测试---------------
+    var render1 = compileToFunction("<ul style=\"color:blue\" a=\"1\" key=\"hi\">\n<li key=\"a\">a</li>\n<li key=\"b\">b</li>\n<li key=\"c\">c</li>\n</ul>");
+    var vm1 = new Vue({
+      data: {
+        name: 'cc'
+      }
+    });
+    var preVnode = render1.call(vm1);
+    var el = createElm(preVnode);
+    document.body.appendChild(el);
+    var render2 = compileToFunction("<ul style=\"background-color:red\"  a=\"2\" b=\"1\" key=\"hi\">\n<li key=\"a\">a</li>\n<li key=\"b\">b</li>\n<li key=\"c\">c</li>\n<li key=\"d\">d</li>\n</ul>");
+    var vm2 = new Vue({
+      data: {
+        name: 'lzb'
+      }
+    });
+    var nextVnode = render2.call(vm2);
+    setTimeout(function () {
+      patch(preVnode, nextVnode);
+      // let newEl = createElm(nextVnode)
+      // el.parentNode.replaceChild(newEl,el)
+    }, 1000);
 
     return Vue;
 
