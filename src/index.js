@@ -25,6 +25,7 @@ let render1 = compileToFunction(`<ul style="color:blue" a="1" key="hi">
 <li key="a">a</li>
 <li key="b">b</li>
 <li key="c">c</li>
+<li key="d">d</li>
 </ul>`)
 let vm1 = new Vue({data:{name:'cc'}})
 let preVnode = render1.call(vm1)
@@ -33,10 +34,12 @@ document.body.appendChild(el)
 
 
 let render2 = compileToFunction(`<ul style="background-color:red"  a="2" b="1" key="hi">
-<li key="a">a</li>
 <li key="b">b</li>
+<li key="m">m</li>
+<li key="a">a</li>
+<li key="p">p</li>
 <li key="c">c</li>
-<li key="d">d</li>
+<li key="q">q</li>
 </ul>`)
 let vm2 = new Vue({data:{name:'lzb'}})
 let nextVnode = render2.call(vm2)
