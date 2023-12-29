@@ -8,8 +8,13 @@ export function initLifeCycle(Vue) {
     Vue.prototype._update = function (vnode) {
         const vm = this
         const el = vm.$el
-        //patch方法里面把虚拟节点转换为真实节点,并把模板中替换旧节点,采用diff算法
-        vm.$el = patch(el, vnode)
+        const preVnode = vm._vnode
+        vm._vnode = vnode //把组件第一次产生的虚拟节点保存到_vnode上 
+        if(preVnode){ // 之前渲染过
+            vm.$el = patch(preVnode,vnode)
+        }else{
+            vm.$el = patch(el, vnode)
+        }   
     }
 
     // _c('div',{},...children)

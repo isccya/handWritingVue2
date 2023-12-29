@@ -49,5 +49,18 @@ with(this){return _c('li',{style:{"color":"'blue'","background-color":"'red'"}},
 3. **watcher.js**:初始化因为lazy变量控制,计算属性不会第一次就计算.dirty值默认为true.第一次在模板中使用计算属性时,调用计算属性get,get里判断dirty为true,进行evaluate计算,将计算值保存到value中(watcher里面getter是用户原本传入的get),在计算时候会访问计算属性依赖的数据,这些数据subs收集计算属性的watcher,计算后将值设置为不脏,实现缓存.
 4. **dep.js**:当计算属性依赖的数据被修改后,调用dep.notify(),执行subs里面收集的watcher.update()
 5. **watcher.js**:update方法里,lazy标明是计算属性,将dirty值设置为true,标明是脏数据要重新求值.然后渲染watcher执行update,渲染模板读取计算属性,访问计算属性getter,计算属性因为脏数据重新求值.
-## diff算法
-1. diff算法是一个平级比较的过程,父亲和父亲,儿子和儿子
+## mixin(复用)
+1. **GolbalAPI.js**:全局API中有一个mixin方法,用户传入复用的选项,添加到Vue构造函数的options属性中.
+2. **init.js**:当前实例上会有一个$options属性保存全局的选项和用户传入的实例选项.
+## Vue.extend
+1. **GlobalAPI.js**:Vue.extend根据用户传入的选项返回一个Vue子类的构造函数.初始化一个组件时候,会通过原型调用Vue上的init方法.里面合并Vue全局的options到组件实例上
+2. **init.js**:
+```
+对于Vue实例来说:
+vm.$options  <===合并全局mixin,coponents的选项和用户传入的选项.
+对于组件实例来说:
+vm.$options  <===是合并组件实例的选项和用户传入的选项.
+(所以为了有全局属性,在extend方法中还有一次合并)
+```
+## Vue.component
+1. **GlobalAPI.js**:Vue.options.components存储全局组件,id和对应的definition; Vue.options.components[id] = 包装成构造函数

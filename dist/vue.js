@@ -21,6 +21,15 @@
         }
       };
     });
+    strats.components = function (parentVal, childVal) {
+      var res = Object.create(parentVal);
+      if (childVal) {
+        for (var key in childVal) {
+          res[key] = childVal[key]; //返回的是构造的对象,可以拿到父亲原型上的属性,并且将儿子拷贝到对象上.(!!组件会形成原型的层层嵌套!!)
+        }
+      }
+      return res;
+    };
     function mergeOptions(parent, child) {
       var options = {};
       for (var key in parent) {
@@ -43,12 +52,37 @@
     }
 
     function initGlobalAPI(Vue) {
-      Vue.options = {}; //上面是合并后的配置
+      Vue.options = {
+        _base: Vue
+      }; //上面是合并后的配置
 
       Vue.mixin = function (mixin) {
-        // 将用户的选项和全局options进行合并
+        // 将用户mixin的选项和全局options进行合并(这里this就是构造函数Vue)
         this.options = mergeOptions(this.options, mixin);
         return this;
+      };
+      Vue.extend = function (options) {
+        // 根据用户参数返回一个Vue的子类的构造函数.(extend时候可以传参数,)
+        function Sub() {
+          var options = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+          //最终使用一个组件,就是new一个实例
+          this._init(options); //默认对子类初始化操作
+        }
+        Sub.prototype = Object.create(Vue.prototype); // VueComponent.prototype.__proto__ === Vue.prototype,让组件实例对象（vc）可以访问到 Vue 原型上的属性、方法
+        Sub.prototype.constructor = Sub;
+
+        // 将用户传递的参数和全局Vue.options来合并
+        Sub.options = mergeOptions(Vue.options, options); //保存用户的选项到组件实例上
+        return Sub;
+      };
+      Vue.options.components = {}; // 全局组件存储的位置.
+      Vue.component = function (id, definition) {
+        //创建全局组件
+
+        // 如果definition已经是一个函数,证明用户自己调用了Vue.extend
+
+        definition = typeof definition === 'function' ? definition : Vue.extend(definition);
+        Vue.options.components[id] = definition;
       };
     }
 
@@ -145,221 +179,6 @@
     }
     function _nonIterableRest() {
       throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
-    }
-
-    /**
-     * 
-     * 这个文件夹***生成AST语法树***
-     * 
-     * 
-     * 获取模板字符串后,从头到尾先解析开始标签,获得其标签名,属性,和结束标签和标签文本内容.模板字符串不断裁剪到为空.
-     * 根据开始标签,文本,结束标签创建AST节点,注意根节点的判断,以及父子节点关系,通过一个栈数据结构判断父子节点
-     * 开始标签会进栈,结束标签出栈,文本会直接作为当前父节点的属性,栈结尾的元素即为当前的要进栈元素的***父节点***
-     * 最终形成AST语法树.每一层是一个节点,有父节点,子节点,和自身属性.
-     * 
-     * */
-
-    var ncname = "[a-zA-Z_][\\-\\.0-9_a-zA-Z]*";
-    var qnameCapture = "((?:".concat(ncname, "\\:)?").concat(ncname, ")");
-    var startTagOpen = new RegExp("^<".concat(qnameCapture)); // 他匹配到的分组是一个 标签名  <xxx 匹配到的是开始 标签的名字
-    var endTag = new RegExp("^<\\/".concat(qnameCapture, "[^>]*>")); // 匹配的是</xxxx>  最终匹配到的分组就是结束标签的名字
-    var attribute = /^\s*([^\s"'<>\/=]+)(?:\s*(=)\s*(?:"([^"]*)"+|'([^']*)'+|([^\s"'=<>`]+)))?/; // 匹配属性
-    // 第一个分组就是属性的key value 就是 分组3/分组4/分组五
-    var startTagClose = /^\s*(\/?)>/; // <div> <br/>
-
-    // vue3 采用的不是使用正则
-    // 对模板进行编译处理  
-    function parseHTML(html) {
-      var ELEMENT_TYPE = 1;
-      var TEXT_TYPE = 3;
-      var stack = []; // 用于存放元素的
-      var currentParent; // 指向的是栈中的最后一个
-      var root;
-      function createASTElement(tag, attrs) {
-        return {
-          tag: tag,
-          type: ELEMENT_TYPE,
-          children: [],
-          attrs: attrs,
-          parent: null
-        };
-      }
-      function start(tag, attrs) {
-        var node = createASTElement(tag, attrs); //创建一个ast节点
-        if (!root) {
-          //没有根节点,当前元素就是根节点
-          root = node;
-        }
-        if (currentParent) {
-          node.parent = currentParent; //子知父
-          currentParent.children.push(node); //父知子
-        }
-        stack.push(node);
-        currentParent = node; //父节点为栈中最后一个元素
-      }
-      function chars(text) {
-        //文本放到当前指向的节点
-        text = text.replace(/\s/g, '');
-        text && currentParent.children.push({
-          type: TEXT_TYPE,
-          text: text,
-          parent: currentParent
-        });
-      }
-      function end(tag) {
-        stack.pop(); //弹出最后一个
-        currentParent = stack[stack.length - 1];
-      }
-
-      // 模板解析完多少,就前进多少
-      function advance(n) {
-        html = html.substring(n);
-      }
-
-      // 解析开始标签及其里面的属性
-      function parseStartTag() {
-        var start = html.match(startTagOpen);
-        // 1.匹配到开始标签
-        if (start) {
-          var match = {
-            tagName: start[1],
-            //标签名
-            attrs: []
-          };
-          advance(start[0].length);
-          // 2.如果不是开始标签的结束,就一直匹配属性,把属性值放入match.attrs中
-          var attr, _end;
-          while (!(_end = html.match(startTagClose)) && (attr = html.match(attribute))) {
-            advance(attr[0].length);
-            match.attrs.push({
-              name: attr[1],
-              value: attr[3] || attr[4] || attr[5]
-            } || true);
-          }
-          // 3.匹配到结束符号
-          if (_end) {
-            advance(_end[0].length);
-          }
-          return match;
-        }
-        return false; //不是开始标签
-      }
-      while (html) {
-        // 如果textEnd 为0 说明是一个开始标签或者结束标签
-        // 如果textEnd > 0说明就是文本的结束位置
-        var textEnd = html.indexOf('<'); // 如果indexOf中的索引是0 则说明是个标签
-        if (textEnd === 0) {
-          var startTagMatch = parseStartTag(); //开始标签的匹配
-          if (startTagMatch) {
-            start(startTagMatch.tagName, startTagMatch.attrs);
-            continue;
-          }
-          var endTagMatch = html.match(endTag);
-          if (endTagMatch) {
-            end(endTagMatch[1]);
-            advance(endTagMatch[0].length);
-            continue;
-          }
-        }
-        if (textEnd > 0) {
-          var text = html.substring(0, textEnd); //文本内容
-          if (text) {
-            chars(text);
-            advance(text.length); //解析到的文本
-          }
-        }
-      }
-      return root;
-    }
-
-    /**
-     * 
-     * 
-     * 
-     * 
-     * compileToFunction传入一个模板,将模板变为AST语法树,AST语法树代码生成渲染函数
-     * 
-     * 
-     * 
-     * 
-     * */
-    function genProps(attrs) {
-      var str = ''; // {name,value}
-      var _loop = function _loop() {
-        var attr = attrs[i];
-        if (attr.name === 'style') {
-          // color:red;background:red => {color:'red'}
-          var obj = {};
-          attr.value.split(';').forEach(function (item) {
-            // qs 库
-            var _item$split = item.split(':'),
-              _item$split2 = _slicedToArray(_item$split, 2),
-              key = _item$split2[0],
-              value = _item$split2[1];
-            obj[key] = value;
-          });
-          attr.value = obj;
-        }
-        str += "".concat(attr.name, ":").concat(JSON.stringify(attr.value), ","); // a:b,c:d,
-      };
-      for (var i = 0; i < attrs.length; i++) {
-        _loop();
-      }
-      return "{".concat(str.slice(0, -1), "}");
-    }
-    var defaultTagRE = /\{\{((?:.|\r?\n)+?)\}\}/g; // {{ asdsadsa }}  匹配到的内容就是我们表达式的变量
-    function gen(node) {
-      if (node.type === 1) {
-        return codegen(node);
-      } else {
-        // 文本
-        var text = node.text;
-        if (!defaultTagRE.test(text)) {
-          return "_v(".concat(JSON.stringify(text), ")");
-        } else {
-          //_v( _s(name)+'hello' + _s(name))
-          var tokens = [];
-          var match;
-          defaultTagRE.lastIndex = 0;
-          var lastIndex = 0;
-          // split
-          while (match = defaultTagRE.exec(text)) {
-            var index = match.index; // 匹配的位置  {{name}} hello  {{name}} hello 
-            if (index > lastIndex) {
-              tokens.push(JSON.stringify(text.slice(lastIndex, index)));
-            }
-            tokens.push("_s(".concat(match[1].trim(), ")"));
-            lastIndex = index + match[0].length;
-          }
-          if (lastIndex < text.length) {
-            tokens.push(JSON.stringify(text.slice(lastIndex)));
-          }
-          return "_v(".concat(tokens.join('+'), ")");
-        }
-      }
-    }
-    function genChildren(children) {
-      return children.map(function (child) {
-        return gen(child);
-      }).join(',');
-    }
-    function codegen(ast) {
-      var children = genChildren(ast.children);
-      var code = "_c('".concat(ast.tag, "',").concat(ast.attrs.length > 0 ? genProps(ast.attrs) : 'null').concat(ast.children.length ? ",".concat(children) : '', ")");
-      return code;
-    }
-    function compileToFunction(template) {
-      // 1.将template转换为AST语法树
-      var ast = parseHTML(template);
-
-      // 2.生成render方法(render方法执行后返回的是虚拟DOM)
-      var code = codegen(ast);
-
-      // 模板引擎的实现原理 就是 with  + new Function 
-
-      code = "with(this){return ".concat(code, "}");
-      var render = new Function(code);
-      return render;
     }
 
     var id$1 = 0;
@@ -784,8 +603,227 @@
     }
 
     /**
+     * 
+     * 这个文件夹***生成AST语法树***
+     * 
+     * 
+     * 获取模板字符串后,从头到尾先解析开始标签,获得其标签名,属性,和结束标签和标签文本内容.模板字符串不断裁剪到为空.
+     * 根据开始标签,文本,结束标签创建AST节点,注意根节点的判断,以及父子节点关系,通过一个栈数据结构判断父子节点
+     * 开始标签会进栈,结束标签出栈,文本会直接作为当前父节点的属性,栈结尾的元素即为当前的要进栈元素的***父节点***
+     * 最终形成AST语法树.每一层是一个节点,有父节点,子节点,和自身属性.
+     * 
+     * */
+
+    var ncname = "[a-zA-Z_][\\-\\.0-9_a-zA-Z]*";
+    var qnameCapture = "((?:".concat(ncname, "\\:)?").concat(ncname, ")");
+    var startTagOpen = new RegExp("^<".concat(qnameCapture)); // 他匹配到的分组是一个 标签名  <xxx 匹配到的是开始 标签的名字
+    var endTag = new RegExp("^<\\/".concat(qnameCapture, "[^>]*>")); // 匹配的是</xxxx>  最终匹配到的分组就是结束标签的名字
+    var attribute = /^\s*([^\s"'<>\/=]+)(?:\s*(=)\s*(?:"([^"]*)"+|'([^']*)'+|([^\s"'=<>`]+)))?/; // 匹配属性
+    // 第一个分组就是属性的key value 就是 分组3/分组4/分组五
+    var startTagClose = /^\s*(\/?)>/; // <div> <br/>
+
+    // vue3 采用的不是使用正则
+    // 对模板进行编译处理  
+    function parseHTML(html) {
+      var ELEMENT_TYPE = 1;
+      var TEXT_TYPE = 3;
+      var stack = []; // 用于存放元素的
+      var currentParent; // 指向的是栈中的最后一个
+      var root;
+      function createASTElement(tag, attrs) {
+        return {
+          tag: tag,
+          type: ELEMENT_TYPE,
+          children: [],
+          attrs: attrs,
+          parent: null
+        };
+      }
+      function start(tag, attrs) {
+        var node = createASTElement(tag, attrs); //创建一个ast节点
+        if (!root) {
+          //没有根节点,当前元素就是根节点
+          root = node;
+        }
+        if (currentParent) {
+          node.parent = currentParent; //子知父
+          currentParent.children.push(node); //父知子
+        }
+        stack.push(node);
+        currentParent = node; //父节点为栈中最后一个元素
+      }
+      function chars(text) {
+        //文本放到当前指向的节点
+        text = text.replace(/\s/g, '');
+        text && currentParent.children.push({
+          type: TEXT_TYPE,
+          text: text,
+          parent: currentParent
+        });
+      }
+      function end(tag) {
+        stack.pop(); //弹出最后一个
+        currentParent = stack[stack.length - 1];
+      }
+
+      // 模板解析完多少,就前进多少
+      function advance(n) {
+        html = html.substring(n);
+      }
+
+      // 解析开始标签及其里面的属性
+      function parseStartTag() {
+        var start = html.match(startTagOpen);
+        // 1.匹配到开始标签
+        if (start) {
+          var match = {
+            tagName: start[1],
+            //标签名
+            attrs: []
+          };
+          advance(start[0].length);
+          // 2.如果不是开始标签的结束,就一直匹配属性,把属性值放入match.attrs中
+          var attr, _end;
+          while (!(_end = html.match(startTagClose)) && (attr = html.match(attribute))) {
+            advance(attr[0].length);
+            match.attrs.push({
+              name: attr[1],
+              value: attr[3] || attr[4] || attr[5]
+            } || true);
+          }
+          // 3.匹配到结束符号
+          if (_end) {
+            advance(_end[0].length);
+          }
+          return match;
+        }
+        return false; //不是开始标签
+      }
+      while (html) {
+        // 如果textEnd 为0 说明是一个开始标签或者结束标签
+        // 如果textEnd > 0说明就是文本的结束位置
+        var textEnd = html.indexOf('<'); // 如果indexOf中的索引是0 则说明是个标签
+        if (textEnd === 0) {
+          var startTagMatch = parseStartTag(); //开始标签的匹配
+          if (startTagMatch) {
+            start(startTagMatch.tagName, startTagMatch.attrs);
+            continue;
+          }
+          var endTagMatch = html.match(endTag);
+          if (endTagMatch) {
+            end(endTagMatch[1]);
+            advance(endTagMatch[0].length);
+            continue;
+          }
+        }
+        if (textEnd > 0) {
+          var text = html.substring(0, textEnd); //文本内容
+          if (text) {
+            chars(text);
+            advance(text.length); //解析到的文本
+          }
+        }
+      }
+      return root;
+    }
+
+    /**
+     * 
+     * 
+     * 
+     * 
+     * compileToFunction传入一个模板,将模板变为AST语法树,AST语法树代码生成渲染函数
+     * 
+     * 
+     * 
+     * 
+     * */
+    function genProps(attrs) {
+      var str = ''; // {name,value}
+      var _loop = function _loop() {
+        var attr = attrs[i];
+        if (attr.name === 'style') {
+          // color:red;background:red => {color:'red'}
+          var obj = {};
+          attr.value.split(';').forEach(function (item) {
+            // qs 库
+            var _item$split = item.split(':'),
+              _item$split2 = _slicedToArray(_item$split, 2),
+              key = _item$split2[0],
+              value = _item$split2[1];
+            obj[key] = value;
+          });
+          attr.value = obj;
+        }
+        str += "".concat(attr.name, ":").concat(JSON.stringify(attr.value), ","); // a:b,c:d,
+      };
+      for (var i = 0; i < attrs.length; i++) {
+        _loop();
+      }
+      return "{".concat(str.slice(0, -1), "}");
+    }
+    var defaultTagRE = /\{\{((?:.|\r?\n)+?)\}\}/g; // {{ asdsadsa }}  匹配到的内容就是我们表达式的变量
+    function gen(node) {
+      if (node.type === 1) {
+        return codegen(node);
+      } else {
+        // 文本
+        var text = node.text;
+        if (!defaultTagRE.test(text)) {
+          return "_v(".concat(JSON.stringify(text), ")");
+        } else {
+          //_v( _s(name)+'hello' + _s(name))
+          var tokens = [];
+          var match;
+          defaultTagRE.lastIndex = 0;
+          var lastIndex = 0;
+          // split
+          while (match = defaultTagRE.exec(text)) {
+            var index = match.index; // 匹配的位置  {{name}} hello  {{name}} hello 
+            if (index > lastIndex) {
+              tokens.push(JSON.stringify(text.slice(lastIndex, index)));
+            }
+            tokens.push("_s(".concat(match[1].trim(), ")"));
+            lastIndex = index + match[0].length;
+          }
+          if (lastIndex < text.length) {
+            tokens.push(JSON.stringify(text.slice(lastIndex)));
+          }
+          return "_v(".concat(tokens.join('+'), ")");
+        }
+      }
+    }
+    function genChildren(children) {
+      return children.map(function (child) {
+        return gen(child);
+      }).join(',');
+    }
+    function codegen(ast) {
+      var children = genChildren(ast.children);
+      var code = "_c('".concat(ast.tag, "',").concat(ast.attrs.length > 0 ? genProps(ast.attrs) : 'null').concat(ast.children.length ? ",".concat(children) : '', ")");
+      return code;
+    }
+    function compileToFunction(template) {
+      // 1.将template转换为AST语法树
+      var ast = parseHTML(template);
+
+      // 2.生成render方法(render方法执行后返回的是虚拟DOM)
+      var code = codegen(ast);
+
+      // 模板引擎的实现原理 就是 with  + new Function 
+
+      code = "with(this){return ".concat(code, "}");
+      var render = new Function(code);
+      return render;
+    }
+
+    /**
      * 这个文件是渲染函数render执行时候创建虚拟节点
      * */
+
+    var isReservedTag = function isReservedTag(tag) {
+      return ['a', 'div', 'p', 'button', 'ul', 'li', 'span'].includes(tag);
+    };
 
     // h()  _c()
     function createElementVNode(vm, tag, data) {
@@ -800,8 +838,30 @@
       for (var _len = arguments.length, children = new Array(_len > 3 ? _len - 3 : 0), _key = 3; _key < _len; _key++) {
         children[_key - 3] = arguments[_key];
       }
-      return vnode(vm, tag, key, data, children);
+      if (isReservedTag(tag)) {
+        // 不是原生html的节点
+        return vnode(vm, tag, key, data, children);
+      } else {
+        // 创建一个组件的虚拟节点(包含组件的构造函数)
+        var Ctor = vm.$options.components[tag]; //组件的构造函数
+        console.log(Ctor);
+        // Ctor就是组件的定义,可能是一个Sub类,还有可能是组件的template
+
+        return createComponentVnode(vm, tag, key, data, children, Ctor);
+      }
     }
+    function createComponentVnode(vm, tag, key, data, children, Ctor) {
+      if (_typeof(Ctor) === 'object') {
+        Ctor = vm.$options._base.extend(Ctor);
+      }
+      data.hook = {
+        init: function init() {}
+      };
+      return vnode(vm, tag, key, data, children, null, {
+        Ctor: Ctor
+      });
+    }
+
     // _v();
     function createTextVNode(vm, text) {
       //创建文本虚拟节点
@@ -809,14 +869,15 @@
     }
     // ast一样吗？ ast做的是语法层面的转化 他描述的是语法本身 (可以描述js css html)
     // 我们的虚拟dom 是描述的dom元素，可以增加一些自定义属性  (描述dom的)
-    function vnode(vm, tag, key, data, children, text) {
+    function vnode(vm, tag, key, data, children, text, componentOptions) {
       return {
         vm: vm,
         tag: tag,
         key: key,
         data: data,
         children: children,
-        text: text
+        text: text,
+        componentOptions: componentOptions
         // ....
       };
     }
@@ -1033,8 +1094,14 @@
       Vue.prototype._update = function (vnode) {
         var vm = this;
         var el = vm.$el;
-        //patch方法里面把虚拟节点转换为真实节点,并把模板中替换旧节点,采用diff算法
-        vm.$el = patch(el, vnode);
+        var preVnode = vm._vnode;
+        vm._vnode = vnode; //把组件第一次产生的虚拟节点保存到_vnode上 
+        if (preVnode) {
+          // 之前渲染过
+          vm.$el = patch(preVnode, vnode);
+        } else {
+          vm.$el = patch(el, vnode);
+        }
       };
 
       // _c('div',{},...children)
@@ -1087,10 +1154,9 @@
     function initMixin(Vue) {
       //给Vue添加init方法
       Vue.prototype._init = function (options) {
-        //初始化操作
+        //初始化操作     
         var vm = this;
-        vm.$options = mergeOptions(this.constructor.options, options); //将用户选项挂载到实例上
-
+        vm.$options = mergeOptions(this.constructor.options, options); //将用户选项挂载到实例上(mixin方法可能添加了全局的选项)
         // 初始化状态
         callHook(vm, 'beforeCreate');
         initState(vm);
@@ -1141,29 +1207,6 @@
     initLifeCycle(Vue); //添加vue的生命周期
     initGlobalAPI(Vue); // 添加vue的全局方法
     initStateMixin(Vue); //实现了nextTick $watch
-
-    // ----------------测试---------------
-    var render1 = compileToFunction("<ul style=\"color:blue\" a=\"1\" key=\"hi\">\n<li key=\"a\">a</li>\n<li key=\"b\">b</li>\n<li key=\"c\">c</li>\n<li key=\"d\">d</li>\n</ul>");
-    var vm1 = new Vue({
-      data: {
-        name: 'cc'
-      }
-    });
-    var preVnode = render1.call(vm1);
-    var el = createElm(preVnode);
-    document.body.appendChild(el);
-    var render2 = compileToFunction("<ul style=\"background-color:red\"  a=\"2\" b=\"1\" key=\"hi\">\n<li key=\"b\">b</li>\n<li key=\"m\">m</li>\n<li key=\"a\">a</li>\n<li key=\"p\">p</li>\n<li key=\"c\">c</li>\n<li key=\"q\">q</li>\n</ul>");
-    var vm2 = new Vue({
-      data: {
-        name: 'lzb'
-      }
-    });
-    var nextVnode = render2.call(vm2);
-    setTimeout(function () {
-      patch(preVnode, nextVnode);
-      // let newEl = createElm(nextVnode)
-      // el.parentNode.replaceChild(newEl,el)
-    }, 1000);
 
     return Vue;
 

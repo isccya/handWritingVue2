@@ -2,6 +2,10 @@
  * 这个文件是渲染函数render执行时候创建虚拟节点
  * */ 
 
+const isReservedTag = (tag) =>{
+    return ['a','div','p','button','ul','li','span'].includes(tag)
+}
+
 // h()  _c()
 export function createElementVNode(vm, tag, data, ...children) { //创建元素虚拟节点
     if (data == null) {
@@ -11,22 +15,47 @@ export function createElementVNode(vm, tag, data, ...children) { //创建元素�
     if (key) {
         delete data.key
     }
-    return vnode(vm, tag, key, data, children);
+    if(isReservedTag(tag)){ // 不是原生html的节点
+        return vnode(vm, tag, key, data, children);
+    }else{
+        // 创建一个组件的虚拟节点(包含组件的构造函数)
+        let Ctor = vm.$options.components[tag] //组件的构造函数
+        console.log(Ctor);
+        // Ctor就是组件的定义,可能是一个Sub类,还有可能是组件的template
+
+        return createComponentVnode(vm,tag,key,data,children,Ctor)
+    }
 }
+
+function createComponentVnode(vm,tag,key,data,children,Ctor){
+    if(typeof Ctor === 'object'){
+        Ctor = vm.$options._base.extend(Ctor)
+    }
+    data.hook = {
+        init(){
+
+        }
+    }
+    return vnode(vm,tag,key,data,children,null,{Ctor})
+}
+
+
+
 // _v();
 export function createTextVNode(vm, text) { //创建文本虚拟节点
     return vnode(vm, undefined, undefined, undefined, undefined, text);
 }
 // ast一样吗？ ast做的是语法层面的转化 他描述的是语法本身 (可以描述js css html)
 // 我们的虚拟dom 是描述的dom元素，可以增加一些自定义属性  (描述dom的)
-function vnode(vm, tag, key, data, children, text) {
+function vnode(vm, tag, key, data, children, text,componentOptions) {
     return {
         vm,
         tag,
         key,
         data,
         children,
-        text
+        text,
+        componentOptions
         // ....
     }
 }

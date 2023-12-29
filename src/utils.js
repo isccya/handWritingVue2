@@ -18,6 +18,18 @@
      }
  })
 
+
+ 
+ strats.components = function(parentVal,childVal){
+    const res = Object.create(parentVal)
+    if(childVal){
+        for(let key in childVal){
+            res[key] = childVal[key] //返回的是构造的对象,可以拿到父亲原型上的属性,并且将儿子拷贝到对象上.(!!组件会形成原型的层层嵌套!!)
+        }
+    }
+    return res
+ }
+
 export function mergeOptions(parent, child) {
     const options = {}
     for (let key in parent) {
