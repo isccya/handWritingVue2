@@ -855,7 +855,12 @@
         Ctor = vm.$options._base.extend(Ctor);
       }
       data.hook = {
-        init: function init() {}
+        //创建真实节点时候,如果是组件则调用此init方法.
+        init: function init(vnode) {
+          // 保存组件实例到虚拟节点上
+          var instance = vnode.componentInstance = new vnode.componentOptions.Ctor();
+          instance.$mount(); //instance.$el
+        }
       };
       return vnode(vm, tag, key, data, children, null, {
         Ctor: Ctor
@@ -887,6 +892,15 @@
       return vnode1.tag === vnode2.tag && vnode1.key === vnode2.key; // 没有key则key值是undefined,也认为是同节点
     }
 
+    function createComponent(vnode) {
+      //组件
+      var i = vnode.data;
+      if ((i = i.hook) && (i = i.init)) {
+        i(vnode); //初始化组件,找到init方法
+      }
+      if (vnode.componentInstance) return true; //说明是组件
+    }
+
     // 创建真实DOM
     function createElm(vnode) {
       var tag = vnode.tag,
@@ -895,6 +909,12 @@
         text = vnode.text;
       if (typeof tag == 'string') {
         //元素节点
+
+        // 创建真实元素 也要区分是组件还是元素
+        if (createComponent(vnode)) {
+          //组件 vnode.componentInstance.$el
+          return vnode.componentInstance.$el; // vm.$el 对应的就是组件渲染的结果
+        }
         vnode.el = document.createElement(tag);
         patchProps(vnode.el, {}, data);
         children.forEach(function (child) {
@@ -939,6 +959,10 @@
 
     // 写的是渲染过程,把真实DOM放到页面中了,并且返回新创建的真实DOM
     function patch(oldVnode, vnode) {
+      if (!oldVnode) {
+        //这就是组件的挂载
+        return createElm(vnode); //vm.$el 对应的是组件渲染的结果.
+      }
       var isRealElement = oldVnode.nodeType;
       if (isRealElement) {
         var elm = oldVnode; //获取真实DOM
@@ -1183,13 +1207,12 @@
             //没有写模板,但写了el
             template = el.outerHTML;
           } else {
-            if (el) {
-              // 只传template的话就要手动挂载(见chatGPT).这里代码没问题
-              template = ops.template; //采用模板内容
-            }
+            // 只传template的话就要手动挂载(见chatGPT).这里代码没问题
+            template = ops.template; //采用模板内容
           }
           // 写了template就用写了的template
           if (template) {
+            //有模板就挂载
             // 这里需要对模板进行编译,即生成AST树,根据AST树代码生成渲染函数.
             var render = compileToFunction(template);
             ops.render = render;

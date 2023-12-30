@@ -64,3 +64,5 @@ vm.$options  <===是合并组件实例的选项和用户传入的选项.
 ```
 ## Vue.component
 1. **GlobalAPI.js**:Vue.options.components存储全局组件,id和对应的definition; Vue.options.components[id] = 包装成构造函数
+## 组件渲染过程(没懂)
+- 组件渲染先找到组件的定义,把模板变成render函数,产生虚拟节点,生成真实DOM,真实DOM插入.

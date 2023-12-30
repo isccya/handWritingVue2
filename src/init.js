@@ -31,12 +31,11 @@ export function initMixin(Vue) { //给Vue添加init方法
             if (!ops.template && el) { //没有写模板,但写了el
                 template = el.outerHTML
             } else {
-                if (el) { // 只传template的话就要手动挂载(见chatGPT).这里代码没问题
+                 // 只传template的话就要手动挂载(见chatGPT).这里代码没问题
                     template = ops.template //采用模板内容
-                }
             }
             // 写了template就用写了的template
-            if (template) {
+            if (template) { //有模板就挂载
                 // 这里需要对模板进行编译,即生成AST树,根据AST树代码生成渲染函数.
                 const render = compileToFunction(template);
                 ops.render = render
