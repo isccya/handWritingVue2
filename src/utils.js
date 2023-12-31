@@ -19,7 +19,6 @@
  })
 
 
- 
  strats.components = function(parentVal,childVal){
     const res = Object.create(parentVal)
     if(childVal){

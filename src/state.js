@@ -36,7 +36,7 @@ function createWatcher(vm, key,handler) {
     return vm.$watch(key,handler)
 }
 
-// 解决访问vm属性要vm_data.name这种写法,直接vm.name
+// 数据代理:  解决访问vm属性要vm_data.name这种写法,直接vm.name
 function proxy(vm, target, key) {
     Object.defineProperty(vm, key, { //vm.name
         get() {

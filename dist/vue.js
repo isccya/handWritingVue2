@@ -229,7 +229,7 @@
 
     // 我们希望重写数组上的方法
 
-    var oldArrayProto = Array.prototype; //获取数组的原型
+    var oldArrayProto = Array.prototype; //获取数组的原型,其实是保留数组其他方法
 
     var newArrayProto = Object.create(oldArrayProto);
     var methods = ['push', 'pop', 'shift', 'unshift', 'reverse', 'sort', 'splice'];
@@ -259,7 +259,7 @@
         return result;
       };
     });
-    // console.log(newArrayProto);
+    console.log(newArrayProto);
 
     var Observer = /*#__PURE__*/function () {
       function Observer(data) {
@@ -529,7 +529,7 @@
       return vm.$watch(key, handler);
     }
 
-    // 解决访问vm属性要vm_data.name这种写法,直接vm.name
+    // 数据代理:  解决访问vm属性要vm_data.name这种写法,直接vm.name
     function proxy(vm, target, key) {
       Object.defineProperty(vm, key, {
         //vm.name
@@ -1178,7 +1178,7 @@
     function initMixin(Vue) {
       //给Vue添加init方法
       Vue.prototype._init = function (options) {
-        //初始化操作     
+        //初始化操作
         var vm = this;
         vm.$options = mergeOptions(this.constructor.options, options); //将用户选项挂载到实例上(mixin方法可能添加了全局的选项)
         // 初始化状态

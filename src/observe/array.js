@@ -2,7 +2,7 @@
 
 
 
-let oldArrayProto = Array.prototype //获取数组的原型
+let oldArrayProto = Array.prototype //获取数组的原型,其实是保留数组其他方法
 
 export let newArrayProto = Object.create(oldArrayProto)
 
@@ -40,4 +40,4 @@ methods.forEach((method) => {
         return result
     }
 })
-// console.log(newArrayProto);
+console.log(newArrayProto);
