@@ -14,7 +14,7 @@ export function initGlobalAPI(Vue) {
     }
 
     Vue.extend = function(options){
-        // 根据用户参数返回一个Vue的子类的构造函数.(extend时候可以传参数,)
+        // 根据用户参数返回一个Vue的子类的构造函数.(extend时候可以传参数)
         function Sub(options = {}){ //最终使用一个组件,就是new一个实例
             this._init(options) //默认对子类初始化操作
         }

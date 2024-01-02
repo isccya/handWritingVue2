@@ -98,7 +98,7 @@ function flushSchedulerQueue() {
     let flushQueue = queue.slice(0);
     queue = [];
     has = {};
-    pending = false;
+    pending = false; // 异步任务中执行当前函数才会把pending设置为true,pending为true才能把下一次更新推到异步任务中.
     flushQueue.forEach(q => q.run()); // 在刷新的过程中可能还有新的watcher，重新放到queue中
 }
 
@@ -117,7 +117,7 @@ function queueWatcher(watcher) {
 // 又来一次这种方法,多个执行合成一个:一个变量,开个异步
 // 控制更新顺序
 let callbacks = []
-let waiting = false
+let waiting = false //如果已经有任务推到异步任务中,不再推送.
 function flushCallbacks() {
     let cbs = callbacks.slice(0)
     waiting = false
@@ -126,13 +126,14 @@ function flushCallbacks() {
 }
 // nextTick不是创建了异步任务,而是将异步任务维护到队列中
 export function nextTick(cb) {
-    callbacks.push(cb)
+    callbacks.push(cb) //可能还有用户写的nextTick
     if (!waiting) {
         Promise.resolve().then(flushCallbacks)
         waiting = true
     }
 }
 
+// 同步任务,一次事件循环时候尽管推入,只要异步没执行都可以推入! waiting,pendng为true不会阻止同步推入,只是确保只有一个异步任务.
 
 export default Watcher
 

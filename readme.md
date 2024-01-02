@@ -58,7 +58,39 @@ with(this){return _c('li',{style:{"color":"'blue'","background-color":"'red'"}},
 5. **dep.js**:当侦听的数据被修改后,调用dep.notify(),执行subs里面收集的watcher.update()
 6.**watcher.js**:run里面,user标识是侦听器的watch,执行cb回调函数
 
+## 生命周期
+1. 内部使用了发布订阅模式,将用户写的钩子维护成一个数组,再用callHook方法调用.
+2. 合并成数组,先子再父那一块.
+```
+initLifecycle(vm) //组件的父子关系 $parent $children
+initEvents(vm) //初始化$on $off $emit
+initRender(vm) // 不重要先过.
+callHook(vm, 'beforeCreate', undefined, false) //beforeCreate
+initInjections(vm) // resolve injections before data/props
+initState(vm)
+initProvide(vm) // resolve provide after data/props
+callHook(vm, 'created') // created
+**lifecycle.ts** :
+挂载组件的方法mountComponent里:
+一开始就调用 callHook(vm, 'beforeMount')
+
+new Watcher执行完后,也就是挂载完后
+调用 callHook(vm, 'mounted') //渲染完毕后调用.可以获取真实DOM
+
+每次watcher更新前会调用watcher上的before函数,清空调度队列时候,会
+调用watcher里的before方法.before方法里会调用beforeUpdate钩子.
+
+更新完即渲染完后会调用updated钩子.
+
+$destroy被调用,就会调用beforeDestroy钩子.然后执行销毁,清理所有watcher,卸载watcher.
+
+销毁完后调用destoryed钩子.
+
+```
 ## nextTick
+1. **watcher.js**:(触发某个数据的setter方法后，它的setter函数会通知闭包中的Dep，Dep则会调用它管理的所有Watch对象。触发Watch对象的update实现。组件更新会调用update方法)update方法调用queueWatcher,过滤同名的watcher(去重)然后放到队列中,调用nextTick异步批处理,一次事件循环里数据更新只会更新一次,在异步中更新(异步更新前可以一直推watcher进队列)(所以内部源码更新也是调用了nextTick)
+2. **watcher.js**:nextTick中,用一个队列维护异步任务,callbacks缓冲用户调用nextTick传入的函数和渲染wather传入的函数,如果没有异步任务推到任务队列中(waiting=false),则将该callbacks推到异步任务中执行.(在该callbacks执行前的事件循环(同步),可以一直推送函数进callbacks.)
+ps: 更新才会触发set,触发update函数,初次渲染是同步调用set.
 
 
 ## computed计算属性
@@ -73,8 +105,8 @@ with(this){return _c('li',{style:{"color":"'blue'","background-color":"'red'"}},
 - ps:
     1. 在Vue.mixin之前声明的组件,不会有mixin方法.
     2. 可以单独注入一个mixin对象(单纯一个对象里面包括一些选项)
-## Vue.extend
-1. **GlobalAPI.js**:Vue.extend根据用户传入的选项返回一个Vue子类的构造函数.初始化一个组件时候,会通过原型调用Vue上的init方法.里面合并Vue全局的options到组件实例上
+## Vue.extend(data为什么是函数)
+1. **GlobalAPI.js**:创建组件过程是通过*Vue.extend*,Vue.extend根据用户传入的选项返回一个*Vue子类的构造函数*,如果传入的选项是一样的话会***复用该构造函数***,调用该构造函数创建组件.用户选项会放在构造函数$options中,如果data是对象则会共享内存.应该采用工厂模式去返回一个对象.初始化一个组件时候,会通过原型调用Vue上的init方法.里面合并Vue全局的options到组件实例上.
 2. **init.js**:
 ```
 对于Vue实例来说:
@@ -83,6 +115,7 @@ vm.$options  <===合并全局mixin,coponents的选项和用户传入的选项.
 vm.$options  <===是合并组件实例的选项和用户传入的选项.
 (所以为了有全局属性,在extend方法中还有一次合并)
 ```
+ps:extend里面有缓存,多次传入同一选项不会创建新的Sub子类,会复用.传入的选项我们会保留在构造函数的$options上,所以data要为函数,不然会共享内存地址造成数据脏乱.
 ## Vue.component
 1. **GlobalAPI.js**:Vue.options.components存储全局组件,id和对应的definition; Vue.options.components[id] = 包装成构造函数
 ## 组件渲染过程(没懂)
