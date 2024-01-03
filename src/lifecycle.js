@@ -27,7 +27,7 @@ export function initLifeCycle(Vue) {
     }
     Vue.prototype._s = function (value) {
         if (typeof value !== 'object') return value
-        return JSON.stringify(value)
+        return JSON.stringify(value) //底层的JSON.stringfy返回完整的对象.
     }
 
 

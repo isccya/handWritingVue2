@@ -57,7 +57,11 @@ with(this){return _c('li',{style:{"color":"'blue'","background-color":"'red'"}},
 4. **watcher.js**:在get里面,访问了侦听的数据,数据subs添加侦听器的watcher.
 5. **dep.js**:当侦听的数据被修改后,调用dep.notify(),执行subs里面收集的watcher.update()
 6.**watcher.js**:run里面,user标识是侦听器的watch,执行cb回调函数
+```
+watch也会创建一个watcher,侦听的数据会把watcher添加到自己的subs队
+列中,数据被修改调用dep.notify更新所有watcher,包括侦听的watcher.
 
+```
 ## 生命周期
 1. 内部使用了发布订阅模式,将用户写的钩子维护成一个数组,再用callHook方法调用.
 2. 合并成数组,先子再父那一块.
@@ -99,12 +103,21 @@ ps: 更新才会触发set,触发update函数,初次渲染是同步调用set.
 3. **watcher.js**:初始化因为lazy变量控制,计算属性不会第一次就计算.dirty值默认为true.第一次在模板中使用计算属性时,调用计算属性get,get里判断dirty为true,进行evaluate计算,将计算值保存到value中(watcher里面getter是用户原本传入的get),在计算时候会访问计算属性依赖的数据,这些数据subs收集计算属性的watcher,计算后将值设置为不脏,实现缓存.
 4. **dep.js**:当计算属性依赖的数据被修改后,调用dep.notify(),执行subs里面收集的watcher.update()
 5. **watcher.js**:update方法里,lazy标明是计算属性,将dirty值设置为true,标明是脏数据要重新求值.然后渲染watcher执行update,渲染模板读取计算属性,访问计算属性getter,计算属性因为脏数据重新求值.
+```
+每个计算属性会代理到实例上,后续渲染会访问,同时重写getter方法,有一
+个变量dirty控制是否使用缓存数据,如果是脏数据则需重新求值,否则使用
+缓存数据.每个计算属性会创建一个watcher,初始化时候lazy变量控制不会
+默认求值.当计算属性被访问时候,默认为脏数据,进行求值,同时把自己watcher放到全局,
+计算属性依赖的数据会把其添加到自己subs中,当修改这些数据时候,让
+dirty变量为true,会让watcher更新.
+```
 ## mixin(复用)
 1. **GolbalAPI.js**:全局API中有一个mixin方法,用户传入复用的选项,添加到Vue构造函数的options属性中.
 2. **init.js**:当前实例上会有一个$options属性保存全局的选项和用户传入的实例选项.
 - ps:
     1. 在Vue.mixin之前声明的组件,不会有mixin方法.
     2. 可以单独注入一个mixin对象(单纯一个对象里面包括一些选项)
+
 ## Vue.extend(data为什么是函数)
 1. **GlobalAPI.js**:创建组件过程是通过*Vue.extend*,Vue.extend根据用户传入的选项返回一个*Vue子类的构造函数*,如果传入的选项是一样的话会***复用该构造函数***,调用该构造函数创建组件.用户选项会放在构造函数$options中,如果data是对象则会共享内存.应该采用工厂模式去返回一个对象.初始化一个组件时候,会通过原型调用Vue上的init方法.里面合并Vue全局的options到组件实例上.
 2. **init.js**:
@@ -116,7 +129,14 @@ vm.$options  <===是合并组件实例的选项和用户传入的选项.
 (所以为了有全局属性,在extend方法中还有一次合并)
 ```
 ps:extend里面有缓存,多次传入同一选项不会创建新的Sub子类,会复用.传入的选项我们会保留在构造函数的$options上,所以data要为函数,不然会共享内存地址造成数据脏乱.
+
 ## Vue.component
 1. **GlobalAPI.js**:Vue.options.components存储全局组件,id和对应的definition; Vue.options.components[id] = 包装成构造函数
+
 ## 组件渲染过程(没懂)
 - 组件渲染先找到组件的定义,把模板变成render函数,产生虚拟节点,生成真实DOM,真实DOM插入.
+
+## $set
+1. 数组则调用数组的方法.
+2. 已有响应式属性直接修改即可,但其实不是响应式也是直接添加啊
+3. 新增数据是对象不添加为响应式,手动触发对象本身的dep来触发更新.__ob__.dep.notify,observe对象.
