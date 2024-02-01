@@ -31,6 +31,7 @@ export function createElm(vnode) {
     }
     return vnode.el;
 }
+
 // 创建真实DOM中的元素节点时候添加元素属性
 export function patchProps(el, oldProps = {}, props = {}) {
     // 老的属性中有,新的没有,要删除老的

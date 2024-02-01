@@ -72,7 +72,9 @@ function codegen(ast) {
     return code;
 }
 
+function genDireactive(el,state){
 
+}
 export function compileToFunction(template) {
 
     // 1.将template转换为AST语法树

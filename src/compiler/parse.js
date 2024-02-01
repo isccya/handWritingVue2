@@ -3,10 +3,10 @@
  * 这个文件夹***生成AST语法树***
  * 
  * 
- * 获取模板字符串后,从头到尾先解析开始标签,获得其标签名,属性,和结束标签和标签文本内容.模板字符串不断裁剪到为空.
- * 根据开始标签,文本,结束标签创建AST节点,注意根节点的判断,以及父子节点关系,通过一个栈数据结构判断父子节点
- * 开始标签会进栈,结束标签出栈,文本会直接作为当前父节点的属性,栈结尾的元素即为当前的要进栈元素的***父节点***
- * 最终形成AST语法树.每一层是一个节点,有父节点,子节点,和自身属性.
+ * 1.   获取模板字符串后,从头到尾先解析开始标签,获得其标签名,属性,和结束标签和标签文本内容.模板字符串不断裁剪到为空.
+ * 2.   根据开始标签,文本,结束标签创建AST节点,注意根节点的判断,以及父子节点关系,通过一个栈数据结构和全局变量判断父子节点
+ * 3.   开始标签会进栈,结束标签出栈,文本会直接作为当前父节点的属性,栈结尾的元素即为当前的要进栈元素的***父节点***
+ * 4.   最终形成AST语法树.每一层是一个节点,有父节点,子节点,和自身属性.
  * 
  * */ 
 
@@ -25,8 +25,8 @@ export function parseHTML(html) {
     const ELEMENT_TYPE = 1;
     const TEXT_TYPE = 3;
     const stack = []; // 用于存放元素的
-    let currentParent; // 指向的是栈中的最后一个
-    let root;
+    let currentParent; // 指向的是栈中的最后一个,当前元素的父节点
+    let root; // 根节点
 
     function createASTElement(tag, attrs) {
         return {
@@ -109,7 +109,7 @@ export function parseHTML(html) {
                 continue
             }
             let endTagMatch = html.match(endTag)
-            if (endTagMatch) {
+            if (endTagMatch) {                    //结束标签的匹配
                 end(endTagMatch[1])
                 advance(endTagMatch[0].length)
                 continue
@@ -117,7 +117,7 @@ export function parseHTML(html) {
 
         }
         if (textEnd > 0) {
-            let text = html.substring(0, textEnd) //文本内容
+            let text = html.substring(0, textEnd) //文本内容的匹配
             if (text) {
                 chars(text)
                 advance(text.length) //解析到的文本

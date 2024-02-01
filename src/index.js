@@ -4,7 +4,7 @@ import { initLifeCycle } from "./lifecycle";
 import { initStateMixin } from "./state";
 
 
-
+// 根据用户选项创建不同的Vue!还有根据用户选项创建不同的子组件!
 function Vue(options) { //options就是用户的选项,包括data,computed等等
     this._init(options)
 }
