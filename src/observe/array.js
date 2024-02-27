@@ -33,7 +33,7 @@ methods.forEach((method) => {
                 break;
         }
         if(inserted){
-            ob.observeArray(inserted);
+            ob.observeArray(inserted); // 对新加入的值作响应式监听.
         }
 
         ob.dep.notify(); //数组变化了,通知对应的watcher实现更新逻辑

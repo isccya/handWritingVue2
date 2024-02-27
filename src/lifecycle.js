@@ -9,10 +9,10 @@ export function initLifeCycle(Vue) {
         const vm = this
         const el = vm.$el
         const preVnode = vm._vnode
-        vm._vnode = vnode //把组件第一次产生的虚拟节点保存到_vnode上 
+        vm._vnode = vnode //把组件第一次产生的虚拟节点保存到_vnodea上 
         if(preVnode){ // 之前渲染过
             vm.$el = patch(preVnode,vnode)
-        }else{
+        }else{ //之前没渲染过,传入真实DOM,在patch里面会直接创建新的虚拟ODM
             vm.$el = patch(el, vnode)
         }   
     }
@@ -41,7 +41,7 @@ export function initLifeCycle(Vue) {
 
 //挂载
 export function mountComponent(vm, el) {
-    vm.$el = el // 这里的el 是通过querySelector处理过的,我们要挂载到的位置
+    vm.$el = el // 这里的el 是通过querySelector选择处理过的,我们要挂载到的位置
 
     // 1.调用render方法产生虚拟节点 虚拟DOM
     const updateComponent = () => {

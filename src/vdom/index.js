@@ -28,7 +28,7 @@ const isReservedTag = (tag) =>{
 
 function createComponentVnode(vm,tag,key,data,children,Ctor){
     if(typeof Ctor === 'object'){ // 在components (注意s)里面写的组件,是一个对象.
-        Ctor = vm.$options._base.extend(Ctor)
+        Ctor = vm.$options._base.extend(Ctor) // _base就是Vue构造函数.
     }
     data.hook = { //创建真实节点时候,如果是组件则调用此init方法.
         init(vnode){

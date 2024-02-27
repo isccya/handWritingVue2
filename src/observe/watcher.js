@@ -35,7 +35,7 @@ class Watcher { //不同组件有不同的watcher ,目前只有根组件有
         }else{
             this.getter = exprOrFn; //getter意味着调用这个函数可以发生取值操作
         }
-        this.deps = []; // 后续 我们实现计算属性,和一些清理工作需要
+        this.deps = []; // 存储当前组件包含的依赖.    后续 我们实现计算属性,和一些清理工作需要
         this.depsId = new Set();
         this.vm = vm
         this.user = options.user;//标识是否是用户自己的watcher
@@ -47,7 +47,7 @@ class Watcher { //不同组件有不同的watcher ,目前只有根组件有
         // 不要立刻执行,懒执行
         this.value = this.lazy ? undefined : this.get()
     }
-    addDep(dep) { // 一个组件对应多个属性 重复的属性也不用记录
+    addDep(dep) { //   addDep就是发布订阅里面的!!!订阅!!!           一个组件对应多个属性 重复的属性也不用记录
         let id = dep.id
         if (!this.depsId.has(id)) {
             this.deps.push(dep)
@@ -61,7 +61,7 @@ class Watcher { //不同组件有不同的watcher ,目前只有根组件有
     }
     get() {
         // 用不到的数据就不会收集
-        pushTarget(this)  //把当前渲染组件的watcher放在全局上,组件渲染会访问数据,数据里get方法会把把该组件添加到自己的dep中
+        pushTarget(this)  //创建watcher时候就会把当前渲染组件的watcher放在全局上,组件渲染会访问数据,数据里get方法会把把该组件添加到自己的dep中
         let value = this.getter.call(this.vm) //会去vm上取值 vm._update(vm._render) 取name 和age. 计算属性里面依赖的数据被取值后,会把计算属性的watcher放入自己队列中
         popTarget(this) // 渲染完之后清空
         return value

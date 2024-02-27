@@ -7,6 +7,7 @@ export function initGlobalAPI(Vue) {
         _base : Vue
     } //上面是合并后的配置
 
+    // 混入的选项放在Vue.options上.
     Vue.mixin = function (mixin) {
         // 将用户mixin的选项和全局options进行合并(这里this就是构造函数Vue)
         this.options = mergeOptions(this.options, mixin)

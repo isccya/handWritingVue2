@@ -1,4 +1,4 @@
-function createRoute(record, location) {
+function createRoute(record, location) { //创建路由记录表
     let matched = [];
     if (record) {
         while (record) {
@@ -62,7 +62,7 @@ class Base {
     }
 
 
-    listen(cb) { // 自定了一个钩子   this._route = route
+    listen(cb) { // 自定了一个钩子   this._route = route,这个方法就是更新组件实例上的route.
         this.cb = cb;
     }
 }

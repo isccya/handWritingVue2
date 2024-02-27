@@ -27,7 +27,7 @@ class Observer {
         data.forEach(item => observe(item)) //把数组里的对象都变成响应式
     }
 }
-
+// 如果对象某个属性值是数组的话,这整个数组也要被依赖收集.并防止嵌套,会循环收集.
 function dependArray(value) {
     for (let i = 0; i < value.length; i++) {
         let current = value[i]

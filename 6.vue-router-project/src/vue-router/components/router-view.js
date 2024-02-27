@@ -1,3 +1,11 @@
+/**
+ * 用h函数对匹配到的组件macthed里面的about about/a进行渲染.
+ * 
+ * 
+ * 
+ * */ 
+
+
 export default {
     functional: true,
     render(h, { parent, data }) {

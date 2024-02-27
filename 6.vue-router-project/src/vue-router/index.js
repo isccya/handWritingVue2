@@ -23,14 +23,9 @@ class VueRouter {
     }
     
     push(location) {
-        // 这里只是调用了 跳转逻辑， 跳转逻辑不会修改我们的路径
-        // 针对hash 值你可以直接window.location.hash 
-        // 不是hash 值的情况  history.pushState
-
+        // 修改url里面方法有两种可能:1是直接修改url,hash和history里面有监听事件变化,然后直接进行跳转逻辑.2是前进后退,调用push方法改变url并走跳转逻辑.
+    //    router-link点击后会触发这个push方法,这个方法再去调用transitionTo
         return this.history.push(location);
-
-
-        
     }
     beforeEach(cb){
         this.beforeEachHooks.push(cb);
