@@ -9,12 +9,12 @@ export function initLifeCycle(Vue) {
         const vm = this
         const el = vm.$el
         const preVnode = vm._vnode
-        vm._vnode = vnode //把组件第一次产生的虚拟节点保存到_vnodea上 
+        vm._vnode = vnode //把组件第一次产生的虚拟节点保存到_vnode上 
         if(preVnode){ // 之前渲染过
             vm.$el = patch(preVnode,vnode)
         }else{ //之前没渲染过,传入真实DOM,在patch里面会直接创建新的虚拟ODM
             vm.$el = patch(el, vnode)
-        }   
+        }
     }
 
     // _c('div',{},...children)
@@ -27,7 +27,7 @@ export function initLifeCycle(Vue) {
     }
     Vue.prototype._s = function (value) {
         if (typeof value !== 'object') return value
-        return JSON.stringify(value) //底层的JSON.stringfy返回完整的对象.
+        return JSON.stringify(value) //底层的JSON.stringfy返回完整的对象.页面渲染就是完整的对象!
     }
 
 

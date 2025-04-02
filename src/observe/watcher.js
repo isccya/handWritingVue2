@@ -24,7 +24,7 @@ let id = 0
 
 
 
-class Watcher { //不同组件有不同的watcher ,目前只有根组件有
+class Watcher { //不同组件有不同的watcher
     constructor(vm, exprOrFn, options,cb) {
         this.id = id++
         this.renderWatcher = options //是一个渲染过程
@@ -77,7 +77,7 @@ class Watcher { //不同组件有不同的watcher ,目前只有根组件有
     run() {
         let oldValue = this.value
         let newValue = this.get()
-        if(this.user){
+        if(this.user){ // 如果是监听器,!同步!执行传入的回调函数.
             this.cb.call(this.vm,newValue,oldValue)
         }
     }

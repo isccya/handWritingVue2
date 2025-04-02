@@ -40,4 +40,4 @@ methods.forEach((method) => {
         return result
     }
 })
-console.log(newArrayProto);
+// console.log(newArrayProto);

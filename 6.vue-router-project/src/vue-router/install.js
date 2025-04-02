@@ -1,9 +1,10 @@
 import routerLink from "./components/router-link";
 import routerView from "./components/router-view";
 
+
 export let Vue;
 function install(_Vue) {
-    Vue = _Vue; // 将传入的Vue的够赞函数变为全局的
+    Vue = _Vue; // 将传入的Vue的构造函数变为全局的
     Vue.mixin({ // mergeOptions 所有组件初始化都会采用这个方法
         beforeCreate() {
             // 这样写只是 有router才加没有router没有加

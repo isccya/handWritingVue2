@@ -70,7 +70,7 @@ export function patch(oldVnode, vnode) {
 
 
 
-    const isRealElement = oldVnode.nodeType
+    const isRealElement = oldVnode.nodeType // nodeType属性是节点原生属性.
     if (isRealElement) {
         const elm = oldVnode; //获取真实DOM
         const parentElm = elm.parentNode //拿到父元素
@@ -174,17 +174,17 @@ function updateChildren(el, oldChildren, newChildren) {
             oldEndVnode = oldChildren[--oldEndIndex]
             newEndVnode = newChildren[--newEndIndex]
         }
-        // 交叉对比, abcd ->dabc
+        // 交叉对比, 旧abcd -> 新dabc
         else if (isSameVnode(oldEndVnode, newStartVnode)) {
             patchVnode(oldEndVnode, newStartVnode);
             el.insertBefore(oldEndVnode.el, oldStartVnode.el) //将老的尾巴移动到老的前面
             oldEndVnode = oldChildren[--oldEndIndex]
             newStartVnode = newChildren[++newStartIndex]
         }
-        // 交叉对比, abcd ->bcda
+        // 交叉对比, abcd -> 新bcda
         else if (isSameVnode(oldStartVnode, newEndVnode)) {
             patchVnode(oldStartVnode, newEndVnode);
-            el.insertBefore(oldStartVnode.el, oldEndVnode.el.nextSibling) //将老的尾巴移动到老的前面
+            el.insertBefore(oldStartVnode.el, oldEndVnode.el.nextSibling) //将老的头移动到老的尾部
             oldStartVnode = oldChildren[++oldStartIndex]
             newEndVnode = newChildren[--newEndIndex]
         } else {

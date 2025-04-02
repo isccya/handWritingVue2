@@ -7,6 +7,7 @@
     // 静态方法 
     var strats = {};
     var LIFECYCLE = ['beforeCreate', 'created'];
+    //  生命周期的策略模式.返回一个数组,父的在前.
     LIFECYCLE.forEach(function (hook) {
       strats[hook] = function (p, c) {
         if (c) {
@@ -21,6 +22,8 @@
         }
       };
     });
+
+    // 组件的策略模式.也是优先使用孩子组件,通过原型访问父组件.
     strats.components = function (parentVal, childVal) {
       var res = Object.create(parentVal);
       if (childVal) {
@@ -40,6 +43,7 @@
           mergeField(_key);
         }
       }
+      // mergeField优先使用孩子属性.
       function mergeField(key) {
         // 用策略模式减少if else
         if (strats[key]) {
@@ -56,13 +60,14 @@
         _base: Vue
       }; //上面是合并后的配置
 
+      // 混入的选项放在Vue.options上.
       Vue.mixin = function (mixin) {
         // 将用户mixin的选项和全局options进行合并(这里this就是构造函数Vue)
         this.options = mergeOptions(this.options, mixin);
         return this;
       };
       Vue.extend = function (options) {
-        // 根据用户参数返回一个Vue的子类的构造函数.(extend时候可以传参数,)
+        // 根据用户参数返回一个Vue的子类的构造函数.(extend时候可以传参数)
         function Sub() {
           var options = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
           //最终使用一个组件,就是new一个实例
@@ -215,7 +220,7 @@
         }
       }]);
       return Dep;
-    }();
+    }(); // 对外暴露全局变量,可以让响应式数据收集watcher.
     Dep.target = null;
     var stack = [];
     function pushTarget(watcher) {
@@ -253,17 +258,18 @@
             inserted = args.slice(2);
         }
         if (inserted) {
-          ob.observeArray(inserted);
+          ob.observeArray(inserted); // 对新加入的值作响应式监听.
         }
         ob.dep.notify(); //数组变化了,通知对应的watcher实现更新逻辑
         return result;
       };
     });
-    console.log(newArrayProto);
+    // console.log(newArrayProto);
 
     var Observer = /*#__PURE__*/function () {
       function Observer(data) {
         _classCallCheck(this, Observer);
+        // 这个data可能是数组也可能是对象.
         // 给每个对象添加收集功能
         this.dep = new Dep();
 
@@ -273,7 +279,7 @@
           value: this,
           enumerable: false //将下划线ob变成不可枚举(循环时候无法获取)
         });
-        // data._ob_ = this; 
+        // data._ob_ = this;
         if (Array.isArray(data)) {
           //如果代理的数据是数组,不能给数组每一个索引都作响应式,很少有arr[876]这样的需求,只对数组方法里面做响应式,还有数组里面的对象作响应式
           data.__proto__ = newArrayProto; //保留数组原有的特性,并且可以重写部分方法
@@ -299,7 +305,7 @@
         }
       }]);
       return Observer;
-    }();
+    }(); // 如果对象某个属性值是数组的话,这整个数组也要被依赖收集.并防止嵌套,会循环收集.
     function dependArray(value) {
       for (var i = 0; i < value.length; i++) {
         var current = value[i];
@@ -321,7 +327,7 @@
           if (Dep.target) {
             dep.depend(); //让这个属性记住当前的watcher
             if (childOb) {
-              childOb.dep.depend(); //让数组和对象本身也实现依赖收集,数组会在变异方法被调用时候触发更新
+              childOb.dep.depend(); //让数组和对象本身也实现依赖收集,数组会在变异方法被调用时候触发更新,对象是$set方法时候触发更新.
               if (Array.isArray(value)) {
                 dependArray(value);
               }
@@ -351,6 +357,13 @@
     }
 
     /**
+     * 1.对象里面的对象默认全都为响应式.因为defineReactive循环调用observe.同时这个子对象改变也会触发childOb.dep.depend()
+     * 数组里面的对象也会监听,数组调用observeArray
+     * 2. 对象里面的数组,
+     * 数组里面的数组都会经过Array.isArray(value)判断
+     * */
+
+    /**
      * 每个组件对应一个watcher,页面渲染的逻辑放到watcher里
      * 每个属性有一个dep (属性是被观察者), watcher是观察者(属性变化了会通知观察者来更新)
      * 
@@ -371,7 +384,7 @@
      * */
     var id = 0;
     var Watcher = /*#__PURE__*/function () {
-      //不同组件有不同的watcher ,目前只有根组件有
+      //不同组件有不同的watcher
       function Watcher(vm, exprOrFn, options, cb) {
         _classCallCheck(this, Watcher);
         this.id = id++;
@@ -383,7 +396,7 @@
         } else {
           this.getter = exprOrFn; //getter意味着调用这个函数可以发生取值操作
         }
-        this.deps = []; // 后续 我们实现计算属性,和一些清理工作需要
+        this.deps = []; // 存储当前组件包含的依赖.    后续 我们实现计算属性,和一些清理工作需要
         this.depsId = new Set();
         this.vm = vm;
         this.user = options.user; //标识是否是用户自己的watcher
@@ -396,7 +409,7 @@
       _createClass(Watcher, [{
         key: "addDep",
         value: function addDep(dep) {
-          // 一个组件对应多个属性 重复的属性也不用记录
+          //   addDep就是发布订阅里面的!!!订阅!!!           一个组件对应多个属性 重复的属性也不用记录
           var id = dep.id;
           if (!this.depsId.has(id)) {
             this.deps.push(dep);
@@ -414,7 +427,7 @@
         key: "get",
         value: function get() {
           // 用不到的数据就不会收集
-          pushTarget(this); //把当前渲染组件的watcher放在全局上,组件渲染会访问数据,数据里get方法会把把该组件添加到自己的dep中
+          pushTarget(this); //创建watcher时候就会把当前渲染组件的watcher放在全局上,组件渲染会访问数据,数据里get方法会把把该组件添加到自己的dep中
           var value = this.getter.call(this.vm); //会去vm上取值 vm._update(vm._render) 取name 和age. 计算属性里面依赖的数据被取值后,会把计算属性的watcher放入自己队列中
           popTarget(); // 渲染完之后清空
           return value;
@@ -435,6 +448,7 @@
           var oldValue = this.value;
           var newValue = this.get();
           if (this.user) {
+            // 如果是监听器,!同步!执行传入的回调函数.
             this.cb.call(this.vm, newValue, oldValue);
           }
         }
@@ -458,7 +472,7 @@
       var flushQueue = queue.slice(0);
       queue = [];
       has = {};
-      pending = false;
+      pending = false; // 异步任务中执行当前函数才会把pending设置为true,pending为true才能把下一次更新推到异步任务中.
       flushQueue.forEach(function (q) {
         return q.run();
       }); // 在刷新的过程中可能还有新的watcher，重新放到queue中
@@ -478,7 +492,7 @@
     // 又来一次这种方法,多个执行合成一个:一个变量,开个异步
     // 控制更新顺序
     var callbacks = [];
-    var waiting = false;
+    var waiting = false; //如果已经有任务推到异步任务中,不再推送.
     function flushCallbacks() {
       var cbs = callbacks.slice(0);
       waiting = false;
@@ -489,7 +503,7 @@
     }
     // nextTick不是创建了异步任务,而是将异步任务维护到队列中
     function nextTick(cb) {
-      callbacks.push(cb);
+      callbacks.push(cb); //可能还有用户写的nextTick
       if (!waiting) {
         Promise.resolve().then(flushCallbacks);
         waiting = true;
@@ -513,6 +527,7 @@
       for (var key in watch) {
         var handler = watch[key]; //字符串 数组 函数
         if (Array.isArray(handler)) {
+          // 多个监听函数
           for (var i = 0; i < handler.length; i++) {
             createWatcher(vm, key, handler[i]);
           }
@@ -607,10 +622,10 @@
      * 这个文件夹***生成AST语法树***
      * 
      * 
-     * 获取模板字符串后,从头到尾先解析开始标签,获得其标签名,属性,和结束标签和标签文本内容.模板字符串不断裁剪到为空.
-     * 根据开始标签,文本,结束标签创建AST节点,注意根节点的判断,以及父子节点关系,通过一个栈数据结构判断父子节点
-     * 开始标签会进栈,结束标签出栈,文本会直接作为当前父节点的属性,栈结尾的元素即为当前的要进栈元素的***父节点***
-     * 最终形成AST语法树.每一层是一个节点,有父节点,子节点,和自身属性.
+     * 1.   获取模板字符串后,从头到尾先解析开始标签,获得其标签名,属性,和结束标签和标签文本内容.模板字符串不断裁剪到为空.
+     * 2.   根据开始标签,文本,结束标签创建AST节点,注意根节点的判断,以及父子节点关系,通过一个栈数据结构和全局变量判断父子节点
+     * 3.   开始标签会进栈,结束标签出栈,文本会直接作为当前父节点的属性,栈结尾的元素即为当前的要进栈元素的***父节点***
+     * 4.   最终形成AST语法树.每一层是一个节点,有父节点,子节点,和自身属性.
      * 
      * */
 
@@ -628,8 +643,9 @@
       var ELEMENT_TYPE = 1;
       var TEXT_TYPE = 3;
       var stack = []; // 用于存放元素的
-      var currentParent; // 指向的是栈中的最后一个
-      var root;
+      var currentParent; // 指向的是栈中的最后一个,当前元素的父节点
+      var root; // 根节点
+
       function createASTElement(tag, attrs) {
         return {
           tag: tag,
@@ -711,13 +727,14 @@
           }
           var endTagMatch = html.match(endTag);
           if (endTagMatch) {
+            //结束标签的匹配
             end(endTagMatch[1]);
             advance(endTagMatch[0].length);
             continue;
           }
         }
         if (textEnd > 0) {
-          var text = html.substring(0, textEnd); //文本内容
+          var text = html.substring(0, textEnd); //文本内容的匹配
           if (text) {
             chars(text);
             advance(text.length); //解析到的文本
@@ -803,14 +820,16 @@
       var code = "_c('".concat(ast.tag, "',").concat(ast.attrs.length > 0 ? genProps(ast.attrs) : 'null').concat(ast.children.length ? ",".concat(children) : '', ")");
       return code;
     }
+
+    // compileToFunction作用:把模板变成渲染函数函数.
     function compileToFunction(template) {
       // 1.将template转换为AST语法树
       var ast = parseHTML(template);
 
-      // 2.生成render方法(render方法执行后返回的是虚拟DOM)
+      // 2.生成render方法(render方法`执行`后返回的是虚拟DOM)
       var code = codegen(ast);
 
-      // 模板引擎的实现原理 就是 with  + new Function 
+      // 模板引擎的实现原理 就是 with  + new Function
 
       code = "with(this){return ".concat(code, "}");
       var render = new Function(code);
@@ -824,8 +843,8 @@
     var isReservedTag = function isReservedTag(tag) {
       return ['a', 'div', 'p', 'button', 'ul', 'li', 'span'].includes(tag);
     };
-
-    // h()  _c()
+    // h函数就是底层的_c函数.
+    // !!!h()!!!  _c()
     function createElementVNode(vm, tag, data) {
       //创建元素虚拟节点
       if (data == null) {
@@ -833,26 +852,26 @@
       }
       var key = data.key;
       if (key) {
-        delete data.key;
+        delete data.key; // 因为key只是vue底层用来对比新旧虚拟节点是否相同.真实dom不会有这玩意
       }
       for (var _len = arguments.length, children = new Array(_len > 3 ? _len - 3 : 0), _key = 3; _key < _len; _key++) {
         children[_key - 3] = arguments[_key];
       }
       if (isReservedTag(tag)) {
-        // 不是原生html的节点
+        // 是原生html的节点
         return vnode(vm, tag, key, data, children);
       } else {
         // 创建一个组件的虚拟节点(包含组件的构造函数)
-        var Ctor = vm.$options.components[tag]; //组件的构造函数
-        console.log(Ctor);
-        // Ctor就是组件的定义,可能是一个Sub类,还有可能是组件的template
+        var Ctor = vm.$options.components[tag]; // !!!组件的构造函数!!!
 
+        // Ctor就是组件的定义,可能是一个Sub类,还有可能是组件的选项
         return createComponentVnode(vm, tag, key, data, children, Ctor);
       }
     }
     function createComponentVnode(vm, tag, key, data, children, Ctor) {
       if (_typeof(Ctor) === 'object') {
-        Ctor = vm.$options._base.extend(Ctor);
+        // 在components (注意s)里面写的组件,是一个对象.
+        Ctor = vm.$options._base.extend(Ctor); // _base就是Vue构造函数.
       }
       data.hook = {
         //创建真实节点时候,如果是组件则调用此init方法.
@@ -882,7 +901,7 @@
         data: data,
         children: children,
         text: text,
-        componentOptions: componentOptions
+        componentOptions: componentOptions // 组件的虚拟节点包括了组件的构造函数.
         // ....
       };
     }
@@ -926,6 +945,7 @@
       }
       return vnode.el;
     }
+
     // 创建真实DOM中的元素节点时候添加元素属性
     function patchProps(el) {
       var oldProps = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
@@ -963,7 +983,7 @@
         //这就是组件的挂载
         return createElm(vnode); //vm.$el 对应的是组件渲染的结果.
       }
-      var isRealElement = oldVnode.nodeType;
+      var isRealElement = oldVnode.nodeType; // nodeType属性是节点原生属性.
       if (isRealElement) {
         var elm = oldVnode; //获取真实DOM
         var parentElm = elm.parentNode; //拿到父元素
@@ -1124,6 +1144,7 @@
           // 之前渲染过
           vm.$el = patch(preVnode, vnode);
         } else {
+          //之前没渲染过,传入真实DOM,在patch里面会直接创建新的虚拟ODM
           vm.$el = patch(el, vnode);
         }
       };
@@ -1138,7 +1159,7 @@
       };
       Vue.prototype._s = function (value) {
         if (_typeof(value) !== 'object') return value;
-        return JSON.stringify(value);
+        return JSON.stringify(value); //底层的JSON.stringfy返回完整的对象.页面渲染就是完整的对象!
       };
       Vue.prototype._render = function () {
         // 渲染时候会去实例取值,就将属性和视图绑定在一起
@@ -1148,7 +1169,7 @@
 
     //挂载
     function mountComponent(vm, el) {
-      vm.$el = el; // 这里的el 是通过querySelector处理过的,我们要挂载到的位置
+      vm.$el = el; // 这里的el 是通过querySelector选择处理过的,我们要挂载到的位置
 
       // 1.调用render方法产生虚拟节点 虚拟DOM
       var updateComponent = function updateComponent() {
@@ -1186,6 +1207,7 @@
         initState(vm);
         callHook(vm, 'created');
         if (options.el) {
+          // 先判断用户有无传入el,传入el的话在new实例化时候会立即进入编辑状态.否则需要$mount手动挂载.
           vm.$mount(options.el); //实现数据的挂载
         }
       };
@@ -1204,13 +1226,11 @@
           //先查找一下有没有写render函数
           var template; //没有render看一下是否写了template,没写template采用外部的template
           if (!ops.template && el) {
-            //没有写模板,但写了el
+            //没有写template,拿$mount挂载的元素.
             template = el.outerHTML;
           } else {
-            // 只传template的话就要手动挂载(见chatGPT).这里代码没问题
-            template = ops.template; //采用模板内容
+            template = ops.template; //写了template
           }
-          // 写了template就用写了的template
           if (template) {
             //有模板就挂载
             // 这里需要对模板进行编译,即生成AST树,根据AST树代码生成渲染函数.
@@ -1222,6 +1242,7 @@
       };
     }
 
+    // 根据用户选项创建不同的Vue!还有根据用户选项创建不同的子组件!
     function Vue(options) {
       //options就是用户的选项,包括data,computed等等
       this._init(options);

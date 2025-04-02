@@ -5,7 +5,7 @@
 const isReservedTag = (tag) =>{
     return ['a','div','p','button','ul','li','span'].includes(tag)
 }
-
+    // h函数就是底层的_c函数.
     // !!!h()!!!  _c()
     export function createElementVNode(vm, tag, data, ...children) { //创建元素虚拟节点
         if (data == null) {
@@ -13,7 +13,7 @@ const isReservedTag = (tag) =>{
         }
         let key = data.key;
         if (key) {
-            delete data.key
+            delete data.key // 因为key只是vue底层用来对比新旧虚拟节点是否相同.真实dom不会有这玩意
         }
         if(isReservedTag(tag)){ // 是原生html的节点
         return vnode(vm, tag, key, data, children);

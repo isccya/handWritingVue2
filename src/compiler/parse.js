@@ -58,7 +58,6 @@ export function parseHTML(html) {
             text,
             parent:currentParent
         })
-
     }
 
     function end(tag) {

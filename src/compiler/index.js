@@ -72,18 +72,16 @@ function codegen(ast) {
     return code;
 }
 
-function genDireactive(el,state){
-
-}
+// compileToFunction作用:把模板变成渲染函数.
 export function compileToFunction(template) {
 
     // 1.将template转换为AST语法树
     let ast = parseHTML(template)
     
-    // 2.生成render方法(render方法执行后返回的是虚拟DOM)
+    // 2.生成render方法(render方法`执行`后返回的是虚拟DOM)
     let code = codegen(ast);
 
-    // 模板引擎的实现原理 就是 with  + new Function 
+    // 模板引擎的实现原理 就是 with  + new Function
 
 
     code = `with(this){return ${code}}`

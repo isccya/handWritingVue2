@@ -3,7 +3,7 @@ import Dep from "./dep"
 
 class Observer {
     constructor(data) {
-
+        // 这个data可能是数组也可能是对象.
         // 给每个对象添加收集功能
         this.dep = new Dep()
 
@@ -12,7 +12,7 @@ class Observer {
             value: this,
             enumerable: false,//将下划线ob变成不可枚举(循环时候无法获取)
         })
-        // data._ob_ = this; 
+        // data._ob_ = this;
         if (Array.isArray(data)) { //如果代理的数据是数组,不能给数组每一个索引都作响应式,很少有arr[876]这样的需求,只对数组方法里面做响应式,还有数组里面的对象作响应式
             data.__proto__ = newArrayProto //保留数组原有的特性,并且可以重写部分方法
             this.observeArray(data) //如果数组中存放的是对象,可以监测到对象的变化
@@ -48,10 +48,10 @@ export function defineReactive(target, key, value) { //闭包 属性劫持
             if (Dep.target) {
                 dep.depend();//让这个属性记住当前的watcher
                 if (childOb) {
-                    childOb.dep.depend() //让数组和对象本身也实现依赖收集,数组会在变异方法被调用时候触发更新
+                    childOb.dep.depend() //让数组和对象本身也实现依赖收集,数组会在变异方法被调用时候触发更新,对象是$set方法时候触发更新.
                     if (Array.isArray(value)) {
                         dependArray(value)
-                    }
+                    }   
                 }
             }
             return value
@@ -76,3 +76,11 @@ export function observe(data) {
     }
     return new Observer(data);
 }
+
+/**
+ * 1.对象里面的对象默认全都为响应式.因为defineReactive循环调用observe.同时这个子对象改变也会触发childOb.dep.depend()
+ * 数组里面的对象也会监听,数组调用observeArray
+ * 2. 对象里面的数组,
+ * 数组里面的数组都会经过Array.isArray(value)判断
+ * */
+

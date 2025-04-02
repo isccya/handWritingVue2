@@ -23,6 +23,7 @@ class Dep {
     }
 }
 
+// 对外暴露全局变量,可以让响应式数据收集watcher.
 Dep.target = null
 let stack = []
 export function pushTarget(watcher){ 

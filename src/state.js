@@ -18,7 +18,7 @@ function initWatch(vm) {
     let watch = vm.$options.watch;
     for (let key in watch) {
         const handler = watch[key]//字符串 数组 函数
-        if (Array.isArray(handler)) {
+        if (Array.isArray(handler)) { // 多个监听函数
             for (let i = 0; i < handler.length; i++) {
                 createWatcher(vm, key,handler[i])
             }
